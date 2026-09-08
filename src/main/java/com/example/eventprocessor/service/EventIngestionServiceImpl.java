@@ -6,6 +6,8 @@ import com.example.eventprocessor.entity.EventStatus;
 import com.example.eventprocessor.entity.ProcessedEventEntity;
 import com.example.eventprocessor.exception.DuplicateEventException;
 import com.example.eventprocessor.exception.InvalidEventException;
+import com.example.eventprocessor.kafka.model.EventEnvelope;
+import com.example.eventprocessor.kafka.producer.KafkaEventProducer;
 import com.example.eventprocessor.repository.ProcessedEventRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,9 +30,13 @@ public class EventIngestionServiceImpl implements EventIngestionService {
     );
 
     private final ProcessedEventRepository processedEventRepository;
+    private final KafkaEventProducer kafkaEventProducer;
 
-    public EventIngestionServiceImpl(ProcessedEventRepository processedEventRepository) {
+    public EventIngestionServiceImpl(
+            ProcessedEventRepository processedEventRepository,
+            KafkaEventProducer kafkaEventProducer) {
         this.processedEventRepository = processedEventRepository;
+        this.kafkaEventProducer = kafkaEventProducer;
     }
 
     @Override
@@ -56,6 +62,10 @@ public class EventIngestionServiceImpl implements EventIngestionService {
         }
 
         log.info("Event successfully accepted and persisted as SUBMITTED: eventId={}, eventType={}", eventId, eventType);
+
+        // Publish to Kafka with eventId as record key
+        EventEnvelope envelope = EventEnvelope.of(eventId, eventType, request.payload());
+        kafkaEventProducer.sendEvent(envelope);
 
         Instant submittedAt = entity.getCreatedAt() != null ? entity.getCreatedAt() : Instant.now();
 

@@ -27,3 +27,10 @@ logging:
     org.flywaydb: INFO
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+kafka:
+  retry:
+    max-attempts: 3
+    initial-interval: 50ms
+    multiplier: 1.5
+    max-interval: 200ms

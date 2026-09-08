@@ -2,6 +2,7 @@ package com.example.eventprocessor.repository;
 
 import com.example.eventprocessor.AbstractPostgresIntegrationTest;
 import com.example.eventprocessor.entity.EventStatus;
+import com.example.eventprocessor.entity.OrderEntity;
 import com.example.eventprocessor.entity.PaymentEntity;
 import com.example.eventprocessor.entity.ProcessedEventEntity;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +30,9 @@ class PostgresPersistenceIntegrationTest extends AbstractPostgresIntegrationTest
     private PaymentRepository paymentRepository;
 
     @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
@@ -40,12 +44,13 @@ class PostgresPersistenceIntegrationTest extends AbstractPostgresIntegrationTest
     void setUp() {
         transactionTemplate = new TransactionTemplate(transactionManager);
         // Clean tables in reverse dependency order before each test
+        orderRepository.deleteAll();
         paymentRepository.deleteAll();
         processedEventRepository.deleteAll();
     }
 
     @Test
-    @DisplayName("Test 1 — Flyway migration: Application starts and migrations V1 and V2 execute successfully")
+    @DisplayName("Test 1 — Flyway migration: Application starts and migrations V1, V2, V3, and V4 execute successfully")
     void testFlywayMigrationsApplied() {
         Integer processedEventsTableCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'processed_events'",
@@ -59,11 +64,23 @@ class PostgresPersistenceIntegrationTest extends AbstractPostgresIntegrationTest
         );
         assertThat(paymentsTableCount).isEqualTo(1);
 
+        Integer ordersTableCount = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'orders'",
+                Integer.class
+        );
+        assertThat(ordersTableCount).isEqualTo(1);
+
         Integer flywayAppliedCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE success = true",
                 Integer.class
         );
-        assertThat(flywayAppliedCount).isGreaterThanOrEqualTo(2);
+        assertThat(flywayAppliedCount).isGreaterThanOrEqualTo(4);
+
+        Integer processingTokenColumn = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = 'processed_events' AND column_name = 'processing_token'",
+                Integer.class
+        );
+        assertThat(processingTokenColumn).isEqualTo(1);
     }
 
     @Test
@@ -163,5 +180,38 @@ class PostgresPersistenceIntegrationTest extends AbstractPostgresIntegrationTest
         })
         .isInstanceOf(DataIntegrityViolationException.class)
         .hasMessageContaining("uq_payments_payment_id");
+    }
+
+    @Test
+    @DisplayName("Test 5 — Order persistence: OrderEntity can be persisted and retrieved")
+    void testOrderPersistenceAndRetrieval() {
+        String orderId = "ORD-TEST-001";
+        String customerId = "CUST-9988";
+        BigDecimal totalAmount = new BigDecimal("499.9900");
+        Integer itemCount = 3;
+
+        OrderEntity order = new OrderEntity(orderId, customerId, totalAmount, itemCount);
+        OrderEntity saved = orderRepository.save(order);
+
+        assertThat(saved.getId()).isNotNull();
+        assertThat(saved.getCreatedAt()).isNotNull();
+        assertThat(saved.getUpdatedAt()).isNotNull();
+
+        Optional<OrderEntity> retrieved = orderRepository.findByOrderId(orderId);
+        assertThat(retrieved).isPresent();
+        assertThat(retrieved.get().getOrderId()).isEqualTo(orderId);
+        assertThat(retrieved.get().getCustomerId()).isEqualTo(customerId);
+        assertThat(retrieved.get().getTotalAmount()).isEqualByComparingTo(totalAmount);
+        assertThat(retrieved.get().getItemCount()).isEqualTo(itemCount);
+
+        // Verify unique order_id constraint
+        assertThatThrownBy(() -> {
+            transactionTemplate.executeWithoutResult(status -> {
+                OrderEntity duplicateOrder = new OrderEntity(orderId, "CUST-OTHER", new BigDecimal("50.0000"), 1);
+                orderRepository.save(duplicateOrder);
+            });
+        })
+        .isInstanceOf(DataIntegrityViolationException.class)
+        .hasMessageContaining("uq_orders_order_id");
     }
 }

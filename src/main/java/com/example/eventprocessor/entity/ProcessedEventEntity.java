@@ -35,6 +35,9 @@ public class ProcessedEventEntity {
     @Column(name = "retry_count", nullable = false)
     private int retryCount = 0;
 
+    @Column(name = "processing_token", length = 64)
+    private String processingToken;
+
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;
 
@@ -111,6 +114,14 @@ public class ProcessedEventEntity {
 
     public void setRetryCount(int retryCount) {
         this.retryCount = retryCount;
+    }
+
+    public String getProcessingToken() {
+        return processingToken;
+    }
+
+    public void setProcessingToken(String processingToken) {
+        this.processingToken = processingToken;
     }
 
     public String getErrorMessage() {
