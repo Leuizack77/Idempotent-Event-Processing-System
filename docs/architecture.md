@@ -104,22 +104,26 @@ sequenceDiagram
     else Redis Key Missing (Cache Miss / Redis Down)
         Cons->>Engine: processIdempotently(event)
         
-        critical Isolated State Transition
+        critical Isolated State Transition (REQUIRES_NEW)
             Engine->>DB: Reserve / Transition event state to 'PROCESSING'
-            alt Unique Constraint Collision / Already Processed
-                DB-->>Engine: Conflict detected (Already COMPLETED / PROCESSING)
+            alt Event Already COMPLETED
+                DB-->>Engine: Terminal state: COMPLETED
                 Engine-->>Cons: Duplicate detected - skip business execution
-            else Transition Succeeded
+                Cons->>Broker: Acknowledge Offset
+            else Event Actively PROCESSING (Within Lease)
+                DB-->>Engine: Active processing in progress
+                Engine-->>Cons: Throw EventProcessingInProgressException
+                Cons--xBroker: Do NOT Acknowledge (Triggers Kafka Redelivery)
+            else Transition Succeeded (New or Stale Reclaimed)
                 critical Business Transaction Boundary (@Transactional)
                     Engine->>Biz: executeBusinessLogic(event)
                     Biz->>DB: INSERT INTO payments (Validates & records payment only)
                     Engine->>DB: UPDATE processed_events SET status = 'COMPLETED'
                 end
                 Engine->>Redis: SETEX "event:idempotency:{eventId}" 86400 "COMPLETED"
+                Cons->>Broker: Acknowledge Offset
             end
         end
-        
-        Cons->>Broker: Acknowledge Offset
     end
 ```
 
@@ -134,20 +138,30 @@ In distributed systems, identical messages can be delivered in parallel across s
 > **A naive `SELECT -> check -> INSERT` pattern is strictly forbidden.**
 > If thread A and thread B both execute `SELECT` before either commits, both will conclude the event is unprocessed and both will execute the business logic, producing duplicate side effects.
 
-#### 4.2 Safe Concurrency & Transaction Boundary Architecture
-To eliminate race conditions without database transaction corruption:
+#### 4.2 Safe Concurrency, Ownership Fencing & Transaction Boundary Architecture
+To eliminate race conditions, stale worker overwrites, and database transaction corruption:
 1. **Durable Database Unique Constraint:**
    `processed_events` defines `CONSTRAINT uq_processed_events_event_id UNIQUE (event_id)`.
-2. **Safe Transaction Isolation:**
+2. **Safe Transaction Isolation (REQUIRES_NEW):**
    - Catching a `DataIntegrityViolationException` inside an active Spring `@Transactional` method marks that entire transaction as **rollback-only**. Blindly attempting further database queries in that same tainted transaction will result in `UnexpectedRollbackException`.
-   - Therefore, the event reservation/state-transition is handled in an **isolated transactional boundary** (e.g., dedicated sub-transaction with `Propagation.REQUIRES_NEW` or explicit insert-first isolation).
-   - If an insert or transition detects a unique constraint collision:
-     - The isolated transaction safely rolls back without corrupting any outer flow.
-     - The consumer inspects the existing event state.
-     - If status is `COMPLETED` or `PROCESSING`, the consumer skips business execution and safely acknowledges the Kafka offset.
-3. **Guarantees Enforced:**
+   - Therefore, event reservation (`tryReserve`), completion (`markCompleted`), and failure (`markFailed`) execute within isolated transaction boundaries (`Propagation.REQUIRES_NEW`).
+3. **Processing Ownership & Fencing Tokens (`processing_token`):**
+   - Each transition or insertion into `PROCESSING` issues a unique ownership token (`processing_token` UUID).
+   - If status is `COMPLETED`: Terminal duplicate confirmed. The consumer skips business execution and safely acknowledges the Kafka offset.
+   - If status is `PROCESSING` (Active Lease within `idempotency.processing-lease-duration`): The event is actively being processed by another worker within its valid lease. The consumer does **NOT** acknowledge Kafka; it throws a retryable `EventProcessingInProgressException` so Kafka initiates redelivery.
+   - If status is `PROCESSING` (Stale Lease Expired): The previous worker is presumed stalled or crashed. The atomic conditional update reclaims the event, generates a **new fencing token**, increments `retry_count`, resets `updated_at`, and grants execution rights to the winning reclaimer.
+4. **Ownership Validation & Fencing Out Old Workers:**
+   - When completing or failing an event, the update query requires:
+     `WHERE event_id = :eventId AND status = :expectedStatus AND processing_token = :processingToken`
+   - If a slow worker finishes after its lease was reclaimed, its token no longer matches the database (`updated == 0`). `markCompleted` returns `false` and throws `StaleProcessingLeaseException`.
+   - An old worker is strictly fenced out and **cannot** overwrite the newer worker's active or completed state.
+5. **Important Business-Effect Consideration:**
+   - Database fencing tokens protect relational mutations within PostgreSQL. If business processing invokes un-fenced, non-transactional external APIs (e.g. third-party REST calls without idempotency keys), a delayed worker could execute that side effect before discovering its lease was reclaimed. Exactly-once business effects require transactional persistence or downstream deduplication keys.
+6. **Guarantees Enforced:**
    - **Exactly one successful business effect:** Only the thread that successfully transitions state to `PROCESSING` proceeds to business logic.
-   - **Duplicate attempts do not execute the business effect:** Any competing thread halts immediately.
+   - **Duplicate attempts do not execute the business effect:** Competing active threads do not execute business logic.
+   - **No lost events on crash:** A crash during `PROCESSING` does not permanently suppress the event; it is safely recovered after lease expiry.
+   - **No stale overwrites:** Old workers cannot overwrite newer processing attempts.
    - **PostgreSQL remains the final durable protection:** Even if Redis is entirely unavailable or flushed.
    - **No inconsistent state:** If the business operation fails, its transaction rolls back cleanly, leaving no orphan payment records.
 

@@ -103,19 +103,49 @@ stateDiagram-v2
 
 ---
 
-### 5. Concurrency & Locking Design
+### 5. Concurrency, Locking & Fencing Design
 
 #### 5.1 Prohibition of Naive Check-Then-Act
 A naive `SELECT -> check -> INSERT` approach is strictly forbidden because concurrent consumer threads will both observe an absent record and concurrently proceed with duplicate business execution.
 
-#### 5.2 Safe Transaction Boundaries
-- Concurrent duplicate handling relies strictly on PostgreSQL's unique constraint (`uq_processed_events_event_id`) and a safe transaction boundary.
+#### 5.2 Safe Transaction Boundaries & Ownership Fencing
+- Concurrent duplicate handling relies strictly on PostgreSQL's unique constraint (`uq_processed_events_event_id`), isolated transaction boundaries (`REQUIRES_NEW`), and explicit **fencing tokens** (`processing_token`).
 - **Rule on Exceptions:** Do not implement a `DataIntegrityViolationException` catch inside an active Spring `@Transactional` method and then blindly continue executing queries in that same rollback-only transaction.
-- To maintain consistency:
-  - Attempting to reserve an event or transition to `PROCESSING` is executed in an isolated sub-transaction boundary.
-  - If a duplicate collision occurs, the isolated transaction rolls back cleanly. The consumer then reads the committed event state from PostgreSQL:
-    - If `COMPLETED` or `PROCESSING`: skip business execution and acknowledge Kafka offset.
-  - Only the winning thread executes the business transaction (`PaymentEventProcessor` + `COMPLETED` update).
+
+#### 5.3 Fencing Token Lifecycle & Ownership Validation
+To prevent a slow or stalled worker from overwriting state after its lease expires and another worker has reclaimed the event:
+1. **Processing Ownership:** Every time an event is reserved or reclaimed into `PROCESSING` state, a cryptographically unique fencing token (`processing_token` UUID) is generated and stored in `processed_events`.
+2. **Lease Expiration:** An event in `PROCESSING` status is considered actively leased for the duration configured by `idempotency.processing-lease-duration` (default: 60s).
+   - If a duplicate event arrives within the lease window, it is rejected with `EventProcessingInProgressException` and the Kafka offset is **NOT** acknowledged (triggering broker redelivery).
+3. **Atomic Stale Reclaim:** If the lease has expired (`updated_at < :staleThreshold`), another worker reclaims the event atomically via:
+   ```sql
+   UPDATE processed_events
+   SET status = 'PROCESSING',
+       processing_token = :newToken,
+       retry_count = retry_count + 1,
+       updated_at = :now
+   WHERE event_id = :eventId
+     AND (status IN ('SUBMITTED', 'RECEIVED', 'FAILED')
+          OR (status = 'PROCESSING' AND updated_at < :staleThreshold))
+   ```
+   PostgreSQL row locks serialize concurrent reclaimers. Exactly one reclaimer wins, installs its `:newToken`, and resets `updated_at`. Competing reclaimers see `updated_at >= :staleThreshold` and are safely rejected as `ACTIVE_PROCESSING`.
+4. **Ownership Validation on Completion / Failure:**
+   ```sql
+   UPDATE processed_events
+   SET status = :newStatus,
+       processed_at = :processedAt,
+       error_message = :errorMessage,
+       updated_at = :now
+   WHERE event_id = :eventId
+     AND status = :expectedStatus
+     AND processing_token = :processingToken
+   ```
+   When a worker finishes, its update checks `processing_token = :processingToken`. If the worker was reclaimed during a pause/GC stall, its token is stale:
+   - The query updates **0 rows**.
+   - `markCompleted` returns `false` and throws `StaleProcessingLeaseException`.
+   - The stale worker cannot overwrite the newer worker's `PROCESSING`, `FAILED`, or `COMPLETED` state.
+5. **External Side Effect Consideration:**
+   Database fencing tokens strictly protect state mutations within the relational database (e.g., `payments` and `processed_events` in the same ACID transaction). A database fencing token alone cannot magically make un-fenced, non-transactional external side effects (such as remote REST API calls to third-party payment gateways without idempotency keys) exactly-once if a worker pauses after calling the external API but before committing the database transaction. Exactly-once guarantees require business processing to be transactional within PostgreSQL or downstream systems to support idempotency/fencing keys.
 
 ---
 
