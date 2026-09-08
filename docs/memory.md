@@ -1,0 +1,460 @@
+# Project Memory & Progress Tracking
+## Idempotent Event Processing System
+
+---
+
+### 1. Project State Overview
+- **Current Phase:** Phase 7 (Completed)
+- **Status:** Phase 7 (Retry and Dead Letter Queue) fully implemented with Spring Kafka `DefaultErrorHandler`, `DeadLetterPublishingRecoverer`, `ExponentialBackOff`, `KafkaRetryClassifier`, manual Kafka offset acknowledgment, transient retry lease management, terminal failure routing to `events.dlq` with diagnostic headers, and verified with 44/44 passing tests. Awaiting user review and approval.
+
+---
+
+### 2. Phase 3 Implementation Summary
+
+#### What Was Implemented
+1. **Request/Response DTO Layer:**
+   - `EventRequestDto.java`: Record with Bean Validation enforcing `@NotBlank` and `@Size(max = 128)` on `eventId`, `@NotBlank` on `eventType`, and `@NotEmpty` on `payload`.
+   - `EventResponseDto.java`: Record returning `eventId`, `status` (`SUBMITTED`), `message`, and `submittedAt` timestamp.
+   - `FieldErrorDto.java`: Record providing structured field error details (`field`, `rejectedValue`, `message`).
+   - `ErrorResponseDto.java`: Record providing standard RFC 7807 Problem Details response (`type`, `title`, `status`, `detail`, `instance`, `timestamp`, `errors`).
+2. **Exception Handling Layer:**
+   - `GlobalExceptionHandler.java`: Annotated with `@RestControllerAdvice` centralizing error handling for:
+     - `MethodArgumentNotValidException` -> 400 Bad Request with field-level RFC 7807 problem details.
+     - `InvalidEventException` -> 400 Bad Request with descriptive message (e.g., unsupported event type, missing payload fields).
+     - `DuplicateEventException` -> 409 Conflict when eventId already exists.
+     - `HttpMessageNotReadableException` -> 400 Bad Request on malformed JSON bodies.
+     - `Exception` -> 500 Internal Server Error (sanitized, stack traces strictly suppressed).
+3. **Service Layer:**
+   - `EventIngestionService.java` & `EventIngestionServiceImpl.java`:
+     - Validates supported event types (`PAYMENT_COMPLETED`, `ORDER_CREATED`).
+     - Validates payload structures per event type (ensuring required fields exist and are non-blank).
+     - Checks for duplicate `eventId` against PostgreSQL.
+     - Persists a `ProcessedEventEntity` with durable status `EventStatus.SUBMITTED`.
+     - Strictly omits Kafka publishing (deferred to Phase 4).
+4. **REST Controller Layer:**
+   - `EventIngestionController.java`:
+     - Exposes `POST /api/events`.
+     - Enforces `@Valid` request body parsing.
+     - Delegates directly to `EventIngestionService`.
+     - Returns HTTP `202 Accepted` with `EventResponseDto`.
+5. **Testing Suite:**
+   - `EventIngestionControllerTest.java` running against real PostgreSQL via Testcontainers:
+     - Test 1: Valid `PAYMENT_COMPLETED` event -> 202 Accepted, status `SUBMITTED`, persisted in DB.
+     - Test 2: Missing `eventId` -> 400 Bad Request, RFC 7807 problem details.
+     - Test 3: Blank `eventId` -> 400 Bad Request.
+     - Test 4: `eventId` over 128 characters -> 400 Bad Request.
+     - Test 5: Missing `eventType` -> 400 Bad Request.
+     - Test 6: Unsupported `eventType` (`USER_DELETED`) -> 400 Bad Request.
+     - Test 7: Missing or empty payload -> 400 Bad Request.
+     - Test 8: Valid `ORDER_CREATED` event -> 202 Accepted, status `SUBMITTED`, persisted in DB.
+     - Test 9: Duplicate `eventId` submission -> 409 Conflict.
+
+---
+
+### 3. Files Created & Modified
+
+#### Files Created
+- [`src/main/java/com/example/eventprocessor/dto/request/EventRequestDto.java`](file:///e:/New%20folder/src/main/java/com/example/eventprocessor/dto/request/EventRequestDto.java)
+- [`src/main/java/com/example/eventprocessor/dto/response/EventResponseDto.java`](file:///e:/New%20folder/src/main/java/com/example/eventprocessor/dto/response/EventResponseDto.java)
+- [`src/main/java/com/example/eventprocessor/dto/response/FieldErrorDto.java`](file:///e:/New%20folder/src/main/java/com/example/eventprocessor/dto/response/FieldErrorDto.java)
+- [`src/main/java/com/example/eventprocessor/dto/response/ErrorResponseDto.java`](file:///e:/New%20folder/src/main/java/com/example/eventprocessor/dto/response/ErrorResponseDto.java)
+- [`src/main/java/com/example/eventprocessor/exception/InvalidEventException.java`](file:///e:/New%20folder/src/main/java/com/example/eventprocessor/exception/InvalidEventException.java)
+- [`src/main/java/com/example/eventprocessor/exception/DuplicateEventException.java`](file:///e:/New%20folder/src/main/java/com/example/eventprocessor/exception/DuplicateEventException.java)
+- [`src/main/java/com/example/eventprocessor/exception/GlobalExceptionHandler.java`](file:///e:/New%20folder/src/main/java/com/example/eventprocessor/exception/GlobalExceptionHandler.java)
+- [`src/main/java/com/example/eventprocessor/service/EventIngestionService.java`](file:///e:/New%20folder/src/main/java/com/example/eventprocessor/service/EventIngestionService.java)
+- [`src/main/java/com/example/eventprocessor/service/EventIngestionServiceImpl.java`](file:///e:/New%20folder/src/main/java/com/example/eventprocessor/service/EventIngestionServiceImpl.java)
+- [`src/main/java/com/example/eventprocessor/controller/EventIngestionController.java`](file:///e:/New%20folder/src/main/java/com/example/eventprocessor/controller/EventIngestionController.java)
+- [`src/test/java/com/example/eventprocessor/controller/EventIngestionControllerTest.java`](file:///e:/New%20folder/src/test/java/com/example/eventprocessor/controller/EventIngestionControllerTest.java)
+
+#### Files Modified
+- [`docs/memory.md`](file:///e:/New%20folder/docs/memory.md) — Updated tracking state with Phase 3 completion.
+
+---
+
+### 4. Important Technical Decisions
+
+1. **DTO & Entity Separation:**
+   - Implemented immutable Java `record` types for all REST contracts. No JPA entities are exposed through REST endpoints.
+2. **RFC 7807 Compliance:**
+   - Validation and business errors return standardized Problem Details (`type`, `title`, `status`, `detail`, `instance`, `timestamp`, `errors`).
+   - Internal stack traces are strictly hidden from clients.
+3. **Strict Scope Discipline:**
+   - Kafka publishing and message queues were intentionally omitted (scheduled for Phase 4).
+   - Event processing and deduplication algorithms were intentionally omitted (scheduled for Phase 5 & 6).
+   - Only documented event types (`PAYMENT_COMPLETED`, `ORDER_CREATED`) are accepted.
+
+---
+
+### 5. Tests Executed & Exact Maven Results
+
+- **Commands Executed:**
+  - `mvn clean compile`
+  - `mvn test`
+- **Results:**
+  ```text
+  [INFO] Running com.example.eventprocessor.controller.EventIngestionControllerTest
+  [INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 27.68 s -- in com.example.eventprocessor.controller.EventIngestionControllerTest
+  [INFO] Running com.example.eventprocessor.EventProcessorApplicationTests
+  [INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.146 s -- in com.example.eventprocessor.EventProcessorApplicationTests
+  [INFO] Running com.example.eventprocessor.repository.PostgresPersistenceIntegrationTest
+  [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.404 s -- in com.example.eventprocessor.repository.PostgresPersistenceIntegrationTest
+  [INFO] 
+  [INFO] Results:
+  [INFO] Tests run: 15, Failures: 0, Errors: 0, Skipped: 0
+  [INFO] ------------------------------------------------------------------------
+  [INFO] BUILD SUCCESS
+  [INFO] Total time:  38.705 s
+  ```
+
+---
+
+---
+
+## Phase 4: Kafka Producer and Consumer
+
+### 1. Architectural Decisions Made
+1. **Partitioning and Ordering Key:**
+   - The Kafka producer sets `eventId` as the record key on topic `events`.
+   - **Crucial Distinction:** The record key ensures partition affinity and in-order per-event delivery across consumer partitions. It does NOT guarantee distributed idempotency across consumers, consumer restarts, rebalances, or producer retries. Durable deduplication belongs to Phase 5.
+2. **Producer Reliability Settings:**
+   - `acks = "all"` ensures all in-sync replicas acknowledge write.
+   - `enable.idempotence = true` ensures exactly-once semantics between producer and broker (guards against duplicate network retries by producer).
+   - `retries = 3` with exponential backoff.
+3. **Consumer Offset Management:**
+   - Offset commit mode is configured as `AckMode.MANUAL_IMMEDIATE`.
+   - Offsets are acknowledged manually via `acknowledgment.acknowledge()` strictly *after* delegate processing succeeds.
+   - Processing failures prevent offset acknowledgment, enabling broker redelivery.
+4. **Delegate Architecture:**
+   - `KafkaEventConsumer` delegates event handling to `EventProcessingDelegate`.
+   - Decouples transport consumption from business execution (preparing for Phase 5 durable idempotency and Phase 6 business logic).
+5. **Topics Defined:**
+   - `events` (3 partitions, 1 replica)
+   - `events.retry` (3 partitions, 1 replica)
+   - `events.dlq` (3 partitions, 1 replica)
+
+---
+
+### 2. Implementation Summary
+- **Dependencies (`pom.xml`):** Added `spring-kafka`, `org.testcontainers:kafka:1.20.1`, and `org.awaitility:awaitility:4.2.2`. Configured `maven-surefire-plugin` with `argLine` `-Dnet.bytebuddy.experimental=true` and Docker environment settings.
+- **Kafka Topics & Configuration (`KafkaConfig.java`):** Declares `events`, `events.retry`, and `events.dlq` NewTopic beans. Configures `ProducerFactory` (`acks=all`, `enable.idempotence=true`), `ConsumerFactory` with `ErrorHandlingDeserializer` wrapping `JsonDeserializer`, and `ConcurrentKafkaListenerContainerFactory` with `AckMode.MANUAL_IMMEDIATE`.
+- **Model (`EventEnvelope.java`):** Strongly-typed payload wrapper containing `eventId`, `eventType`, `timestamp`, and `Map<String, Object> payload`.
+- **Producer (`KafkaEventProducer.java`):** Sends `EventEnvelope` to `events` topic using `eventId` as key.
+- **Consumer (`KafkaEventConsumer.java`):** `@KafkaListener(topics = "events", groupId = "event-processor-group")`, manual `Acknowledgment`, error handling without acknowledging on exception.
+- **Delegate (`EventProcessingDelegate.java`, `DefaultEventProcessingDelegate.java`):** Interface and default logging implementation with custom test hook.
+- **Ingestion Pipeline Link (`EventIngestionServiceImpl.java`):** On `POST /api/events`, the event is persisted as `EventStatus.SUBMITTED` in PostgreSQL and published asynchronously to Kafka via `KafkaEventProducer`.
+- **Integration Testing (`AbstractPostgresIntegrationTest.java`, `KafkaProducerConsumerIntegrationTest.java`):** Reusable Testcontainers PostgreSQL (`postgres:16-alpine`) and Apache Kafka (`apache/kafka:3.7.0`) base test class. Full suite of 4 Kafka integration tests testing broker keying, raw consumer polling, delegate processing, failure-before-ack redelivery, and end-to-end REST ingestion-to-consumption.
+
+---
+
+### 3. Tests Executed & Exact Maven Results
+- **Commands Executed:**
+  - `mvn clean test-compile`
+  - `mvn test`
+- **Results:**
+  ```text
+  [INFO] Running com.example.eventprocessor.EventProcessorApplicationTests
+  [INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.174 s -- in com.example.eventprocessor.EventProcessorApplicationTests
+  [INFO] Running com.example.eventprocessor.controller.EventIngestionControllerTest
+  [INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 16.59 s -- in com.example.eventprocessor.controller.EventIngestionControllerTest
+  [INFO] Running com.example.eventprocessor.kafka.KafkaProducerConsumerIntegrationTest
+  [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 11.23 s -- in com.example.eventprocessor.kafka.KafkaProducerConsumerIntegrationTest
+  [INFO] Running com.example.eventprocessor.repository.PostgresPersistenceIntegrationTest
+  [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.497 s -- in com.example.eventprocessor.repository.PostgresPersistenceIntegrationTest
+  [INFO] 
+  [INFO] Results:
+  [INFO] 
+  [INFO] Tests run: 19, Failures: 0, Errors: 0, Skipped: 0
+  [INFO] 
+  [INFO] ------------------------------------------------------------------------
+  [INFO] BUILD SUCCESS
+  [INFO] ------------------------------------------------------------------------
+  [INFO] Total time:  34.159 s
+  ```
+
+---
+
+## Phase 5: Durable Idempotency Logic
+
+### 1. Architectural Decisions Made
+1. **PostgreSQL as Authoritative Source of Truth:**
+   - Durable idempotency state is stored exclusively in `processed_events` backed by `CONSTRAINT uq_processed_events_event_id UNIQUE (event_id)`.
+   - In-memory sets/maps/caches are strictly forbidden.
+   - Kafka keys and offsets are NOT treated as idempotency mechanisms.
+   - Redis is not used (reserved for Phase 8 read-path optimization).
+2. **Safe Concurrency, Lease-Based Reclaim & Elimination of Check-Then-Act:**
+   - Naive `SELECT -> check -> INSERT` was strictly prohibited.
+   - Configurable lease duration property: `idempotency.processing-lease-duration` (default: `60s`) via `IdempotencyProperties`.
+   - Atomic reservation combines:
+     a. `insertIfNotExists`: Native SQL `INSERT INTO processed_events ... ON CONFLICT (event_id) DO NOTHING` for new events arriving directly via Kafka.
+     b. `transitionToProcessing`: Atomic conditional update:
+        ```sql
+        UPDATE processed_events
+        SET status = 'PROCESSING',
+            retry_count = CASE WHEN status IN ('FAILED', 'PROCESSING') THEN retry_count + 1 ELSE retry_count END,
+            updated_at = :now
+        WHERE event_id = :eventId
+          AND (status IN ('SUBMITTED', 'RECEIVED', 'FAILED')
+               OR (status = 'PROCESSING' AND updated_at < :staleThreshold))
+        ```
+   - PostgreSQL row locks at `READ COMMITTED` guarantee that only one concurrent worker succeeds in updating/reclaiming the record to `PROCESSING`.
+3. **Safe Transaction Boundaries (Zero Rollback-Only Poisoning):**
+   - Reservation (`tryReserve`), completion (`markCompleted`), and failure (`markFailed`) execute in isolated transactions with `Propagation.REQUIRES_NEW`.
+   - Because constraint collisions and row locks are resolved at the database engine level without throwing unhandled exceptions into the caller's persistence context, Hibernate/Spring sessions are never poisoned with rollback-only status.
+   - Zero `UnexpectedRollbackException` occurrences under intense concurrency.
+4. **Event Lifecycle, Non-Terminal PROCESSING & Duplicate Suppression:**
+   - New / unreserved event transitions: `SUBMITTED`/`RECEIVED` -> `PROCESSING` -> `COMPLETED`.
+   - Failed event transitions: `PROCESSING` -> `FAILED` with `errorMessage` recorded and exception bubbled up to prevent Kafka offset commit.
+   - Active `PROCESSING` (within lease): Competing attempts throw `EventProcessingInProgressException`. The Kafka offset is **NOT** acknowledged, triggering container redelivery.
+   - Stale `PROCESSING` (lease expired): Presumed crashed worker; atomically reclaimed by the next consumer, `retry_count` is incremented, and business delegate is executed.
+   - `COMPLETED` event: The ONLY terminal duplicate case that permits Kafka ACK without re-executing business logic.
+   - Crash / redelivery after commit: Redelivered event inspects PostgreSQL, detects `COMPLETED`, skips business execution, acknowledges offset.
+5. **Decoupled Engine & Consumer Flow:**
+   - `KafkaEventConsumer` -> `IdempotencyEngine` -> `IdempotencyService` -> `ProcessedEventRepository` -> PostgreSQL.
+   - `IdempotencyEngine` coordinates reservation and executes `EventProcessingDelegate` only for the winning reservation.
+
+---
+
+### 2. Implementation Summary
+- **Repository Methods (`ProcessedEventRepository.java`):** Added `insertIfNotExists` with `processing_token`, `transitionToProcessing` with `:newToken` and `staleThreshold`, and `updateStatus` with `processing_token` fencing check.
+- **Fencing Tokens & Flyway Migration (`V3__add_processing_token_to_processed_events.sql`):** Preserved `V1` and `V2` as immutable Phase 2 migrations. Added `V3` migration to execute `ALTER TABLE processed_events ADD COLUMN processing_token VARCHAR(64);`. Mapped `processing_token` in `ProcessedEventEntity.java`. Each state transition to `PROCESSING` generates a unique UUID `processing_token`.
+- **Phase 5 Guarantee:** Durable idempotency reservation, ownership fencing, stale-lease recovery, and prevention of stale workers from overwriting a newer processing owner (transactional business processing belongs strictly to Phase 6).
+- **Exceptions (`EventProcessingInProgressException.java`, `StaleProcessingLeaseException.java`):**
+  - `EventProcessingInProgressException`: Thrown on active lease duplicate attempts (suppresses Kafka offset ACK, triggers container redelivery).
+  - `StaleProcessingLeaseException`: Thrown when a reclaimed worker attempts to complete or update an event whose lease was lost to a newer worker.
+- **Service & Engine Layers (`IdempotencyService.java`, `IdempotencyServiceImpl.java`, `IdempotencyEngineImpl.java`):**
+  - `tryReserve` issues `candidateToken = UUID.randomUUID().toString()`.
+  - `markCompleted(eventId, processingToken)` and `markFailed(eventId, processingToken, errorMessage)` enforce token ownership.
+  - If a worker has been reclaimed, its token update affects 0 rows, `markCompleted` returns `false`, and `IdempotencyEngineImpl` throws `StaleProcessingLeaseException`.
+- **Consumer (`KafkaEventConsumer.java`):** Acknowledges offset ONLY on `SUCCESS` or `SKIPPED_DUPLICATE` (`COMPLETED`). Suppresses offset ACK on all in-progress or stale lease exceptions.
+- **Integration Tests (`IdempotencyEngineIntegrationTest.java`):** 10 comprehensive tests against PostgreSQL Testcontainers verifying:
+  1. Completed duplicate bypass
+  2. Active processing rejection (Required Test 1)
+  3. Stale processing recovery (Required Test 2)
+  4. Concurrent stale reclaim with single winner (Required Test 3)
+  5. Old owner fenced out from markCompleted (Required Test 4)
+  6. Old owner fenced out from markFailed (Required Test 5)
+  7. Crash and lease recovery
+  8. Business failure transitions to FAILED
+  9. 50-thread concurrency race (Required Test 6)
+  10. REST-ingested SUBMITTED transition to COMPLETED
+
+---
+
+### 3. Tests Executed & Exact Maven Results
+- **Commands Executed:**
+  - `mvn clean test-compile`
+  - `mvn test`
+- **Results:**
+  ```text
+  [INFO] Running com.example.eventprocessor.EventProcessorApplicationTests
+  [INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.174 s -- in com.example.eventprocessor.EventProcessorApplicationTests
+  [INFO] Running com.example.eventprocessor.controller.EventIngestionControllerTest
+  [INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 16.78 s -- in com.example.eventprocessor.controller.EventIngestionControllerTest
+  [INFO] Running com.example.eventprocessor.idempotency.IdempotencyEngineIntegrationTest
+  [INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 8.420 s -- in com.example.eventprocessor.idempotency.IdempotencyEngineIntegrationTest
+  [INFO] Running com.example.eventprocessor.kafka.KafkaProducerConsumerIntegrationTest
+  [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.771 s -- in com.example.eventprocessor.kafka.KafkaProducerConsumerIntegrationTest
+  [INFO] Running com.example.eventprocessor.repository.PostgresPersistenceIntegrationTest
+  [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.319 s -- in com.example.eventprocessor.repository.PostgresPersistenceIntegrationTest
+  [INFO] 
+  [INFO] Results:
+  [INFO] 
+  [INFO] Tests run: 29, Failures: 0, Errors: 0, Skipped: 0
+  [INFO] 
+  [INFO] ------------------------------------------------------------------------
+  [INFO] BUILD SUCCESS
+  [INFO] ------------------------------------------------------------------------
+  [INFO] Total time:  56.312 s
+  ```
+
+---
+
+## Phase 6: Transactional Business Processing
+
+### 1. Key Architectural Decisions & Guarantees
+1. **Single Atomic Transaction Invariant:**
+   - The domain business mutation (`payments` or `orders` table insertion) and the idempotency state update (`processed_events` transition from `PROCESSING` to `COMPLETED`) are coordinated by `TransactionalBusinessExecutor.executeAndComplete` within the **exact same PostgreSQL database transaction** (`@Transactional(propagation = Propagation.REQUIRED)`).
+   - Both operations commit atomically or roll back completely together.
+2. **Guaranteed Rollback on Failure & Fencing Check:**
+   - If business payload validation fails (`InvalidEventPayloadException`), or duplicate business entity is detected (`DuplicateBusinessEntityException`), or if fencing token ownership fails (`StaleProcessingLeaseException`), the Spring transaction rolls back entirely—ensuring zero partial records in PostgreSQL.
+   - Upon rollback, the outer `IdempotencyEngineImpl` catches the exception, marks the event as `FAILED` in an isolated transaction (`Propagation.REQUIRES_NEW`), and rethrows the exception so `KafkaEventConsumer` suppresses Kafka offset acknowledgment, permitting redelivery.
+3. **Formal Semantic Guarantee:**
+   - **"Exactly-once business effect for the PostgreSQL-backed business mutation under at-least-once Kafka delivery."**
+   - The system does *not* claim Kafka end-to-end exactly-once semantics (which relies on two-phase commit / Kafka transactions); instead, it guarantees that despite at-least-once Kafka message delivery and redeliveries, the business state mutations in PostgreSQL occur strictly once.
+4. **Scope Boundaries Preserved:**
+   - `PaymentEventProcessor` strictly validates payload and persists to `payments`. It does **not** update account balances, wallets, or ledger tables.
+   - `OrderEventProcessor` validates payload and persists to `orders` as an extensibility proof.
+5. **Flyway Migration Immutability:**
+   - Migrations `V1`, `V2`, and `V3` remain strictly immutable.
+   - Migration `V4__create_orders_table.sql` creates the `orders` table with unique constraint `uq_orders_order_id` and index `idx_orders_customer_id`.
+
+---
+
+### 2. Implementation Summary
+- **Flyway Migration (`V4__create_orders_table.sql`):** Creates table `orders` (`id BIGSERIAL PRIMARY KEY`, `order_id VARCHAR(128) NOT NULL UNIQUE`, `customer_id VARCHAR(128) NOT NULL`, `total_amount NUMERIC(19, 4) NOT NULL`, `item_count INT NOT NULL`, `created_at`, `updated_at`).
+- **Domain Entities & Repositories:**
+  - `OrderEntity.java`: JPA entity mapped to `orders` table.
+  - `OrderRepository.java`: Spring Data JPA repository with `findByOrderId`, `existsByOrderId`, and `findByCustomerId`.
+- **Exceptions (`com.example.eventprocessor.exception.*`):**
+  - `InvalidEventPayloadException.java`: Thrown when payload fields are missing, invalid, or non-positive.
+  - `DuplicateBusinessEntityException.java`: Thrown when business entity (`paymentId`, `orderId`) already exists in DB.
+- **Processors & Registry (`com.example.eventprocessor.processing.*`):**
+  - `BusinessEventProcessor.java`: Strategy interface declaring `String getSupportedEventType()` and `void process(EventEnvelope envelope)`.
+  - `PaymentEventProcessor.java`: Implements `BusinessEventProcessor` for `PAYMENT_COMPLETED`. Validates `paymentId`, `userId`, positive `amount`, `currency`, and saves `PaymentEntity`.
+  - `OrderEventProcessor.java`: Implements `BusinessEventProcessor` for `ORDER_CREATED`. Validates `orderId`, `customerId`, positive `totalAmount`, positive `itemCount`, and saves `OrderEntity`.
+  - `EventProcessorRegistry.java`: Dispatches incoming events to the appropriate `BusinessEventProcessor` by `eventType`.
+- **Transactional Coordinator (`TransactionalBusinessExecutor.java`):**
+  - Annotated with `@Transactional(propagation = Propagation.REQUIRED)`.
+  - Runs optional test hook `eventProcessingDelegate.process(envelope)`.
+  - Dispatches to `BusinessEventProcessor.process(envelope)`.
+  - Atomically calls `processedEventRepository.updateStatus(eventId, COMPLETED, PROCESSING, processingToken, now, null, now)`.
+  - Throws `StaleProcessingLeaseException` if fencing token check fails (`updated == 0`), rolling back the business mutation!
+- **Engine Refactoring (`IdempotencyEngineImpl.java`):**
+  - Injects `TransactionalBusinessExecutor`.
+  - Calls `transactionalBusinessExecutor.executeAndComplete(envelope, token)`.
+  - In `catch (Exception e)` block: calls `idempotencyService.markFailed(eventId, token, e.getMessage())` in isolated `REQUIRES_NEW` transaction, then rethrows `e` to suppress Kafka offset commit.
+- **Integration Tests:**
+  - `TransactionalBusinessProcessingIntegrationTest.java`: 7 comprehensive tests verifying:
+    1. Payment success (persisted in `payments`, status `COMPLETED`)
+    2. Payment duplicate at-least-once redelivery (skipped, exactly 1 payment record)
+    3. Order success (persisted in `orders`, status `COMPLETED`)
+    4. Order duplicate (skipped, exactly 1 order record)
+    5. Business failure rollback (invalid payload rolls back DB mutation, marks `FAILED`)
+    6. Transactional atomicity on fencing token mismatch (mutation rolled back, 0 records in DB)
+    7. Concurrent duplicate processing (10 threads, exactly 1 winner commits, 0 duplicate payments)
+  - `PostgresPersistenceIntegrationTest.java`: Extended to verify `V4` migration, `orders` table, and `OrderEntity` persistence/uniqueness.
+
+---
+
+### 3. Tests Executed & Exact Maven Results
+- **Commands Executed:**
+  - `mvn test-compile`
+  - `mvn test`
+- **Results:**
+  ```text
+  [INFO] Running com.example.eventprocessor.controller.EventIngestionControllerTest
+  [INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 13.91 s -- in com.example.eventprocessor.controller.EventIngestionControllerTest
+  [INFO] Running com.example.eventprocessor.EventProcessorApplicationTests
+  [INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.177 s -- in com.example.eventprocessor.EventProcessorApplicationTests
+  [INFO] Running com.example.eventprocessor.kafka.KafkaProducerConsumerIntegrationTest
+  [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.148 s -- in com.example.eventprocessor.kafka.KafkaProducerConsumerIntegrationTest
+  [INFO] Running com.example.eventprocessor.idempotency.IdempotencyEngineIntegrationTest
+  [INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 10.43 s -- in com.example.eventprocessor.idempotency.IdempotencyEngineIntegrationTest
+  [INFO] Running com.example.eventprocessor.processing.TransactionalBusinessProcessingIntegrationTest
+  [INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.449 s -- in com.example.eventprocessor.processing.TransactionalBusinessProcessingIntegrationTest
+  [INFO] Running com.example.eventprocessor.repository.PostgresPersistenceIntegrationTest
+  [INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.246 s -- in com.example.eventprocessor.repository.PostgresPersistenceIntegrationTest
+  [INFO] 
+  [INFO] Results:
+  [INFO] 
+  [INFO] Tests run: 37, Failures: 0, Errors: 0, Skipped: 0
+  [INFO] 
+  [INFO] ------------------------------------------------------------------------
+  [INFO] BUILD SUCCESS
+  [INFO] ------------------------------------------------------------------------
+  ```
+
+---
+
+### 4. Known Limitations & Deferred Scope
+- Dead letter queue (`events.dlq`) and retry exponential backoff are scheduled for Phase 7.
+- Prometheus / Micrometer observability is scheduled for Phase 9.
+- Dockerfile and `docker-compose.yml` are scheduled for Phase 10.
+
+---
+
+### Phase 7: Retry and Dead Letter Queue (DLQ)
+
+### 1. Key Architectural Decisions & Guarantees
+1. **Spring Kafka Standard Error Handling Architecture:**
+   - Utilizes Spring Kafka's `DefaultErrorHandler` paired with `ExponentialBackOff` and `DeadLetterPublishingRecoverer`.
+   - Consumer factory configured with `ContainerProperties.AckMode.MANUAL_IMMEDIATE` and `setDeliveryAttemptHeader(true)`.
+   - `DefaultErrorHandler` is configured with `setCommitRecovered(true)` and `setAckAfterHandle(true)` so failed records routed to the DLQ are acknowledged on the primary topic partition, preventing poison pill head-of-line blocking.
+2. **Exponential Backoff & Max Attempts:**
+   - Properties bound via `kafka.retry` (`KafkaRetryProperties`):
+     - `maxAttempts`: 3 (1 initial attempt + 2 retries)
+     - `initialInterval`: 1s (50ms in test environment)
+     - `multiplier`: 2.0 (1.5 in test environment)
+     - `maxInterval`: 10s (1s in test environment)
+   - Backoff delays are handled inside Spring Kafka consumer loop by pausing consumer partitions, avoiding thread blocking and resource exhaustion.
+3. **Strict Exception Classification:**
+   - Managed by `KafkaRetryClassifier`:
+     - **Retryable / Transient:** `CannotAcquireLockException`, `TransientDataAccessException`, `PessimisticLockingFailureException`, `QueryTimeoutException`, `ConnectException`, `SocketTimeoutException`, `ResourceAccessException`, `EventProcessingInProgressException`.
+     - **Non-Retryable / Fatal:** `InvalidEventPayloadException`, `InvalidEventException`, `DuplicateBusinessEntityException`, `DuplicateEventException`, `StaleProcessingLeaseException`, `IllegalArgumentException`, `MethodArgumentNotValidException`, `HttpMessageNotReadableException`, `JsonProcessingException`, `DeserializationException`.
+   - Root causes are inspected recursively via `NestedExceptionUtils.getMostSpecificCause(ex)`.
+   - Non-retryable exceptions are registered in `DefaultErrorHandler` via `addNotRetryableExceptions(...)` to bypass retries and publish directly to DLQ.
+4. **Idempotency Lifecycle & State Transitions on Retry:**
+   - On transient failure: `idempotencyService.prepareForRetry(...)` atomically executes an isolated transaction (`REQUIRES_NEW`), setting `processing_lease_until = NOW() - 1s` while retaining `status = 'PROCESSING'` and nullifying `processing_token`. This allows subsequent retry attempts to re-reserve the event with a fresh fencing token.
+   - On retry exhaustion or fatal error: `idempotencyService.markFailed(...)` transitions status to `FAILED` with the root cause error message recorded, and publishes to `events.dlq`.
+5. **Ownership Fencing Preservation:**
+   - Fenced-out workers (`StaleProcessingLeaseException`) log a warning and rethrow without calling `prepareForRetry` or `markFailed`.
+   - In `DefaultErrorHandler`'s composite recoverer, fenced-out workers are explicitly prevented from overwriting the durable status to `FAILED`, preserving the active worker's state.
+6. **DLQ Diagnostics & Poison Pill Elimination:**
+   - Poison pills (such as malformed JSON or deserialization errors) are intercepted by `ErrorHandlingDeserializer` and routed directly to `events.dlq`.
+   - DLQ records retain original message key, original payload bytes, and diagnostic headers:
+     - `X-Exception-Message`: Root cause error message.
+     - `X-Exception-Class`: Fully-qualified root exception class name.
+     - `X-Original-Topic`: Original topic (`events`).
+     - `X-Original-Partition`: Original partition ID.
+     - `X-Original-Offset`: Original message offset.
+     - `X-Failed-Timestamp`: ISO-8601 UTC timestamp of terminal failure.
+     - `X-Retry-Count`: Number of delivery attempts made before DLQ publishing.
+
+---
+
+### 2. Implementation Summary
+- **Dependencies & Configuration:**
+  - Standard Spring Kafka 3.x dependencies without adding Redis or speculative frameworks.
+  - `KafkaRetryProperties.java`: Spring `@ConfigurationProperties(prefix = "kafka.retry")`.
+  - `application.yml`, `application-docker.yml`, `application-test.yml`: Configured retry parameters.
+- **Components Implemented:**
+  - `KafkaRetryClassifier.java`: Exception classifier with root cause extraction.
+  - `KafkaConfig.java`: Configured `events.dlq` topic (3 partitions), `DeadLetterPublishingRecoverer`, `DefaultErrorHandler`, and `ConcurrentKafkaListenerContainerFactory`.
+  - `ProcessedEventRepository.java`: Added conditional update query `prepareForRetry(...)`.
+  - `IdempotencyService.java` & `IdempotencyServiceImpl.java`: Added isolated `prepareForRetry(...)` and SUBMITTED-to-PROCESSING transition.
+  - `IdempotencyEngineImpl.java`: Integrated `KafkaRetryClassifier`, `prepareForRetry`, and `markFailed`.
+  - `KafkaDlqConsumer.java`: Dedicated consumer on `events.dlq` for terminal auditing.
+  - `DefaultEventProcessingDelegate.java`: Made `customHandler` `volatile` for cross-thread visibility.
+- **Test Infrastructure & Test Suite:**
+  - `AbstractPostgresIntegrationTest.java`: Added `@AutoConfigureMockMvc` for unified context caching across all integration test classes.
+  - `KafkaRetryDlqIntegrationTest.java`: 7 integration tests covering all required failure and retry scenarios.
+
+---
+
+### 3. Tests Executed & Exact Maven Results
+- **Commands Executed:**
+  - `mvn clean test-compile`
+  - `mvn test -Dtest=KafkaRetryDlqIntegrationTest`
+  - `mvn test`
+- **Results:**
+  ```text
+  [INFO] Running com.example.eventprocessor.EventProcessorApplicationTests
+  [INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.201 s -- in com.example.eventprocessor.EventProcessorApplicationTests
+  [INFO] Running com.example.eventprocessor.controller.EventIngestionControllerTest
+  [INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 14.53 s -- in com.example.eventprocessor.controller.EventIngestionControllerTest
+  [INFO] Running com.example.eventprocessor.idempotency.IdempotencyEngineIntegrationTest
+  [INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.214 s -- in com.example.eventprocessor.idempotency.IdempotencyEngineIntegrationTest
+  [INFO] Running com.example.eventprocessor.kafka.KafkaProducerConsumerIntegrationTest
+  [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.891 s -- in com.example.eventprocessor.kafka.KafkaProducerConsumerIntegrationTest
+  [INFO] Running com.example.eventprocessor.kafka.KafkaRetryDlqIntegrationTest
+  [INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 32.45 s -- in com.example.eventprocessor.kafka.KafkaRetryDlqIntegrationTest
+  [INFO] Running com.example.eventprocessor.processing.TransactionalBusinessProcessingIntegrationTest
+  [INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.834 s -- in com.example.eventprocessor.processing.TransactionalBusinessProcessingIntegrationTest
+  [INFO] Running com.example.eventprocessor.repository.PostgresPersistenceIntegrationTest
+  [INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.766 s -- in com.example.eventprocessor.repository.PostgresPersistenceIntegrationTest
+  [INFO] 
+  [INFO] Results:
+  [INFO] 
+  [INFO] Tests run: 44, Failures: 0, Errors: 0, Skipped: 0
+  [INFO] 
+  [INFO] ------------------------------------------------------------------------
+  [INFO] BUILD SUCCESS
+  [INFO] ------------------------------------------------------------------------
+  [INFO] Total time:  01:00 min
+  ```
+
+---
+
+### 4. Phase Progression Status
+- **Completed Phases:** Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7.
+- **Current Status:** Phase 7 (Retry and Dead Letter Queue) fully implemented, thoroughly tested, and verified with 44/44 passing tests. Awaiting user review and approval before proceeding to Phase 8.
