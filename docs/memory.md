@@ -4,8 +4,8 @@
 ---
 
 ### 1. Project State Overview
-- **Current Phase:** Phase 7 (Completed)
-- **Status:** Phase 7 (Retry and Dead Letter Queue) fully implemented with Spring Kafka `DefaultErrorHandler`, `DeadLetterPublishingRecoverer`, `ExponentialBackOff`, `KafkaRetryClassifier`, manual Kafka offset acknowledgment, transient retry lease management, terminal failure routing to `events.dlq` with diagnostic headers, and verified with 44/44 passing tests. Awaiting user review and approval.
+- **Current Phase:** Phase 8 (Completed)
+- **Status:** Phase 8 (Redis Optimization) fully implemented with Redis fast-path caching for definitive COMPLETED events, non-blocking fail-open fault tolerance, post-commit non-transactional writes, String serialization, configurable TTL, and verified with 51/51 passing tests (44 baseline + 7 Redis tests). Awaiting user review and approval before proceeding to Phase 9.
 
 ---
 
@@ -455,6 +455,94 @@
 
 ---
 
+## Phase 8: Redis Optimization
+
+### 1. Key Architectural Decisions & Guarantees
+1. **PostgreSQL as Authoritative Source of Truth:**
+   - PostgreSQL remains the sole system of record for event idempotency states, lease management, fencing tokens, and domain mutations.
+   - Redis functions strictly as an ephemeral, read-through fast-path cache to short-circuit duplicate detection for definitive `COMPLETED` events without hitting PostgreSQL.
+2. **Strict Post-Commit Write Timing:**
+   - The Redis cache write (`idempotencyCacheService.markCompleted(eventId)`) executes **strictly after** the PostgreSQL transaction (`TransactionalBusinessExecutor.executeAndComplete`) successfully commits.
+   - If the PostgreSQL transaction rolls back (due to business validation failure, unhandled error, or fencing token mismatch), Redis is **never** populated.
+3. **Fail-Open Fault Tolerance & Outage Resilience:**
+   - All Redis operations in `RedisIdempotencyCacheService` are wrapped in non-fatal try-catch error handling.
+   - On read failure or timeout: returns `false` (cache miss), falling back cleanly to authoritative PostgreSQL reservation.
+   - On write failure: logs a warning; PostgreSQL transaction remains committed and Kafka offset is acknowledged.
+   - Under no circumstances does a Redis failure compromise correctness, cause message loss, route valid events to DLQ, or duplicate business execution.
+4. **Cached State Restrictions:**
+   - Only definitive `COMPLETED` state is cached.
+   - `PROCESSING`, `SUBMITTED`, `FAILED`, and lease tokens are never cached in Redis.
+5. **Key Format & Configurable TTL:**
+   - Key format: `event-processing:{eventId}`.
+   - Value: `"COMPLETED"`.
+   - TTL: Configured via `idempotency.cache.ttl: ${IDEMPOTENCY_CACHE_TTL:24h}` (default 24 hours).
+   - Redis TTL is never required for correctness; expired cache entries safely fall back to PostgreSQL.
+
+---
+
+### 2. Implementation Summary
+- **Dependencies & Configuration:**
+  - `pom.xml`: Added `spring-boot-starter-data-redis` (Lettuce driver).
+  - `IdempotencyProperties.java`: Added `CacheProperties` with `ttl` (default `Duration.ofHours(24)`).
+  - `application.yml`, `application-docker.yml`: Configured `spring.data.redis` host, port, timeout, and `idempotency.cache.ttl`.
+  - `RedisConfig.java`: Configured `StringRedisTemplate` with `StringRedisSerializer` (no unsafe native Java serialization).
+- **Cache Service Layer:**
+  - `IdempotencyCacheService.java`: Interface declaring `isCompleted(eventId)`, `markCompleted(eventId)`, and `evict(eventId)`.
+  - `RedisIdempotencyCacheService.java`: Implementation using `StringRedisTemplate` with fail-open exception suppression and structured logging (`[CACHE HIT]`, `[CACHE MISS]`, fallback warnings).
+- **Idempotency Engine Integration:**
+  - `IdempotencyEngineImpl.java`:
+    - Fast-path check: Calls `idempotencyCacheService.isCompleted(eventId)` before reserving event in PostgreSQL. If cached, immediately returns `ProcessingResult.SKIPPED_DUPLICATE`.
+    - Cache population: Calls `idempotencyCacheService.markCompleted(eventId)` strictly after `transactionalBusinessExecutor.executeAndComplete()` commits, or upon detecting an existing `COMPLETED` event in PostgreSQL.
+- **Test Infrastructure & Test Suite:**
+  - `AbstractPostgresIntegrationTest.java`: Added real Redis 7 Alpine Testcontainer (`GenericContainer<?> redis`) with dynamic property mapping.
+  - `RedisIdempotencyOptimizationIntegrationTest.java`: 7 integration tests verifying:
+    1. Cache HIT for completed event bypasses PostgreSQL reservation and skips duplicate.
+    2. Cache MISS executes authoritative PostgreSQL flow.
+    3. PostgreSQL fallback queries authoritative state.
+    4. Redis OUTAGE fails open and succeeds via PostgreSQL without failure or DLQ routing.
+    5. Cache populated AFTER successful commit with exact key `event-processing:{eventId}` and TTL.
+    6. Failed/rolled-back transaction does NOT create completed cache entry.
+    7. TTL expiry / duplicate after expiry falls back to PostgreSQL, preventing duplicate business mutation.
+    8. Concurrent duplicate deliveries commit exactly one business effect under Redis.
+
+---
+
+### 3. Tests Executed & Exact Maven Results
+- **Commands Executed:**
+  - `mvn clean compile`
+  - `mvn test -Dtest=RedisIdempotencyOptimizationIntegrationTest`
+  - `mvn test`
+- **Results:**
+  ```text
+  [INFO] Running com.example.eventprocessor.EventProcessorApplicationTests
+  [INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.177 s -- in com.example.eventprocessor.EventProcessorApplicationTests
+  [INFO] Running com.example.eventprocessor.controller.EventIngestionControllerTest
+  [INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 14.28 s -- in com.example.eventprocessor.controller.EventIngestionControllerTest
+  [INFO] Running com.example.eventprocessor.idempotency.IdempotencyEngineIntegrationTest
+  [INFO] Tests run: 10, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 7.152 s -- in com.example.eventprocessor.idempotency.IdempotencyEngineIntegrationTest
+  [INFO] Running com.example.eventprocessor.kafka.KafkaProducerConsumerIntegrationTest
+  [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.842 s -- in com.example.eventprocessor.kafka.KafkaProducerConsumerIntegrationTest
+  [INFO] Running com.example.eventprocessor.kafka.KafkaRetryDlqIntegrationTest
+  [INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 32.11 s -- in com.example.eventprocessor.kafka.KafkaRetryDlqIntegrationTest
+  [INFO] Running com.example.eventprocessor.processing.TransactionalBusinessProcessingIntegrationTest
+  [INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.849 s -- in com.example.eventprocessor.processing.TransactionalBusinessProcessingIntegrationTest
+  [INFO] Running com.example.eventprocessor.repository.PostgresPersistenceIntegrationTest
+  [INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.745 s -- in com.example.eventprocessor.repository.PostgresPersistenceIntegrationTest
+  [INFO] Running com.example.eventprocessor.resilience.RedisIdempotencyOptimizationIntegrationTest
+  [INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.058 s -- in com.example.eventprocessor.resilience.RedisIdempotencyOptimizationIntegrationTest
+  [INFO] 
+  [INFO] Results:
+  [INFO] 
+  [INFO] Tests run: 51, Failures: 0, Errors: 0, Skipped: 0
+  [INFO] 
+  [INFO] ------------------------------------------------------------------------
+  [INFO] BUILD SUCCESS
+  [INFO] ------------------------------------------------------------------------
+  [INFO] Total time:  01:11 min
+  ```
+
+---
+
 ### 4. Phase Progression Status
-- **Completed Phases:** Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7.
-- **Current Status:** Phase 7 (Retry and Dead Letter Queue) fully implemented, thoroughly tested, and verified with 44/44 passing tests. Awaiting user review and approval before proceeding to Phase 8.
+- **Completed Phases:** Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8.
+- **Current Status:** Phase 8 (Redis Optimization) fully implemented, thoroughly tested, and verified with 51/51 passing tests (44 baseline + 7 Redis tests). Ready for user review and approval before proceeding to Phase 9.

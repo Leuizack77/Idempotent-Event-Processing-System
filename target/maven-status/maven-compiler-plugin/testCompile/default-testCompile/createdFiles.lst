@@ -1,3 +1,9 @@
 com\example\eventprocessor\AbstractPostgresIntegrationTest.class
-com\example\eventprocessor\repository\PostgresPersistenceIntegrationTest.class
+com\example\eventprocessor\processing\TransactionalBusinessProcessingIntegrationTest.class
 com\example\eventprocessor\EventProcessorApplicationTests.class
+com\example\eventprocessor\idempotency\IdempotencyEngineIntegrationTest.class
+com\example\eventprocessor\kafka\KafkaProducerConsumerIntegrationTest.class
+com\example\eventprocessor\kafka\KafkaRetryDlqIntegrationTest.class
+com\example\eventprocessor\repository\PostgresPersistenceIntegrationTest.class
+com\example\eventprocessor\controller\EventIngestionControllerTest.class
+com\example\eventprocessor\resilience\RedisIdempotencyOptimizationIntegrationTest.class

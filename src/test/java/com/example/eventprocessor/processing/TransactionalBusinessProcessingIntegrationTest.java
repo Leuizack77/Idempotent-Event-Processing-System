@@ -286,11 +286,14 @@ class TransactionalBusinessProcessingIntegrationTest extends AbstractPostgresInt
 
         int successCount = 0;
         int inProgressCount = 0;
+        int duplicateCount = 0;
         for (Future<ProcessingResult> future : futures) {
             try {
                 ProcessingResult res = future.get();
                 if (res == ProcessingResult.SUCCESS) {
                     successCount++;
+                } else if (res == ProcessingResult.SKIPPED_DUPLICATE) {
+                    duplicateCount++;
                 }
             } catch (ExecutionException e) {
                 if (e.getCause() instanceof EventProcessingInProgressException) {
@@ -303,7 +306,7 @@ class TransactionalBusinessProcessingIntegrationTest extends AbstractPostgresInt
 
         // Exactly one thread successfully committed the business logic
         assertThat(successCount).isEqualTo(1);
-        assertThat(inProgressCount).isEqualTo(threadCount - 1);
+        assertThat(inProgressCount + duplicateCount).isEqualTo(threadCount - 1);
 
         // Authoritative business verification: Exactly 1 payment record exists in PostgreSQL
         assertThat(paymentRepository.count()).isEqualTo(1);

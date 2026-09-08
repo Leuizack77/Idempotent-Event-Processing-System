@@ -1,3 +1,9 @@
-E:\New folder\src\test\java\com\example\eventprocessor\AbstractPostgresIntegrationTest.java
-E:\New folder\src\test\java\com\example\eventprocessor\EventProcessorApplicationTests.java
-E:\New folder\src\test\java\com\example\eventprocessor\repository\PostgresPersistenceIntegrationTest.java
+E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\AbstractPostgresIntegrationTest.java
+E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\controller\EventIngestionControllerTest.java
+E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\EventProcessorApplicationTests.java
+E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\idempotency\IdempotencyEngineIntegrationTest.java
+E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\kafka\KafkaProducerConsumerIntegrationTest.java
+E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\kafka\KafkaRetryDlqIntegrationTest.java
+E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\processing\TransactionalBusinessProcessingIntegrationTest.java
+E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\repository\PostgresPersistenceIntegrationTest.java
+E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\resilience\RedisIdempotencyOptimizationIntegrationTest.java
