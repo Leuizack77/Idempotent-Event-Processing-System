@@ -19,6 +19,29 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: event-processor-group
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+    listener:
+      ack-mode: manual_immediate
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: ${REDIS_TIMEOUT:2000ms}
+kafka:
+  retry:
+    max-attempts: ${KAFKA_RETRY_MAX_ATTEMPTS:3}
+    initial-interval: ${KAFKA_RETRY_INITIAL_INTERVAL:1000ms}
+    multiplier: ${KAFKA_RETRY_MULTIPLIER:2.0}
+    max-interval: ${KAFKA_RETRY_MAX_INTERVAL:10000ms}
 
 server:
   port: 8080
@@ -39,3 +62,8 @@ logging:
     com.example.eventprocessor: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+idempotency:
+  processing-lease-duration: ${IDEMPOTENCY_LEASE_DURATION:60s}
+  cache:
+    ttl: ${IDEMPOTENCY_CACHE_TTL:24h}
