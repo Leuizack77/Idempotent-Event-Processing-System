@@ -544,5 +544,65 @@
 ---
 
 ### 4. Phase Progression Status
-- **Completed Phases:** Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8.
-- **Current Status:** Phase 8 (Redis Optimization) fully implemented, thoroughly tested, and verified with 51/51 passing tests (44 baseline + 7 Redis tests). Ready for user review and approval before proceeding to Phase 9.
+- **Completed Phases:** Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6, Phase 7, Phase 8, Phase 9.
+- **Current Status:** Phase 9 (High-Concurrency and Failure-Resilience Verification) fully implemented, thoroughly tested, and verified with 61/61 passing tests (51 baseline + 10 Phase 9 resilience tests). Ready for Phase 10.
+
+---
+
+## Phase 9: High-Concurrency and Failure-Resilience Verification
+
+### 1. Key Architectural Guarantees & Verification
+1. **50+ Concurrent Distinct Events (Scenario 1):**
+   - 50 workers simultaneously processing distinct events. All 50 committed business mutations atomically, 50 `COMPLETED` records in PostgreSQL, 50 Redis cache entries populated with TTL. Zero deadlocks or connection timeouts.
+2. **50+ Concurrent Duplicate Stampede on Uncached Event (Scenario 2):**
+   - 50 workers racing on an uncached event. Exactly 1 worker wins business execution and commits. The remaining 49 are safely rejected with `EventProcessingInProgressException` or return `SKIPPED_DUPLICATE`. Exactly 1 business mutation in PostgreSQL, Redis populated, subsequent calls hit fast-path.
+3. **50+ Concurrent Duplicate Storm on Already-Cached Event (Scenario 3):**
+   - 50 workers simultaneously querying an already-cached event. All 50 safely return `SKIPPED_DUPLICATE` via Redis fast-path without modifying PostgreSQL.
+4. **Kafka Consumer Crash & Redelivery Before Offset ACK (Scenario 4):**
+   - Proven invariant: Processing occurs before offset acknowledgment. When failure occurs prior to acknowledgment, offset remains uncommitted, container redelivers, event completes, offset is committed, exactly 1 business mutation exists, zero messages routed to DLQ.
+5. **Multi-Partition Concurrency & Dynamic Rebalancing (Scenario 5):**
+   - 30 events published across 3 topic partitions. A secondary consumer joins and leaves the consumer group mid-stream, triggering genuine group rebalancing. All 30 events processed to `COMPLETED` without partition starvation or duplicate executions.
+6. **20+ Rapid Duplicates Through Real Kafka Broker (Scenario 6):**
+   - 25 duplicate records published to Kafka broker in rapid burst. Exactly 1 business mutation committed, duplicates safely acknowledged, 0 messages in DLQ.
+7. **Lease Expiration, Fencing Tokens, & Rollback (Scenario 7):**
+   - Stale Worker A with `TOKEN-A` is fenced out after lease expiry and Worker B reclaims with `TOKEN-B`. Worker A cannot complete or fail the event, its attempted business transaction throws `StaleProcessingLeaseException` and rolls back completely. Worker B's data remains authoritative.
+8. **Real Redis Outage Under Active Concurrency (Scenario 8):**
+   - Real Redis Testcontainer paused via Docker API while 25 concurrent workers process events. All 25 fail open to PostgreSQL cleanly with zero exceptions leaked to callers. Upon unpausing, Redis caching resumes seamlessly.
+9. **Concurrent Mixed Workload (Scenario 9):**
+   - 40 concurrent items: 10 payments, 10 orders, 10 duplicates, 5 fatal/DLQ events, 5 transient retry events. All resolve to expected states without cross-event interference.
+10. **Concurrent Transaction Rollback (Scenario 10):**
+    - 10 valid and 10 invalid transactions executed concurrently. Valid transactions commit; invalid transactions roll back with zero orphaned database rows.
+
+---
+
+### 2. Implementation Summary
+- **Configuration & Infrastructure:**
+  - `application.yml`: Fixed indentation for `spring.data.redis` (previously placed under `spring.kafka`).
+  - `application-test.yml`: Configured HikariCP connection pool (`maximum-pool-size: 30`, `connection-timeout: 30000`) to support burst concurrency under Docker Desktop.
+  - `AbstractPostgresIntegrationTest.java`: Added `pauseRedis()` and `unpauseRedis()` methods using native Docker API (`dockerClient.pauseContainerCmd / unpauseContainerCmd`).
+- **New Test Package (`src/test/java/com/example/eventprocessor/concurrency/`):**
+  - `HighConcurrencyIdempotencyIntegrationTest.java`: Scenarios 1, 2, 3 (50 concurrent distinct events, 50 duplicate stampede, 50 cached duplicates).
+  - `KafkaFailureAndCrashIntegrationTest.java`: Scenarios 4, 5, 6 (consumer crash/uncommitted offset redelivery, multi-partition rebalance, rapid Kafka duplicates).
+  - `ResilienceAndFencingIntegrationTest.java`: Scenarios 7, 8, 9, 10 (fencing token protection and rollback, real Redis outage fail-open under concurrency, 40-item mixed workload, concurrent transaction rollback).
+
+---
+
+### 3. Tests Executed & Exact Maven Results
+- **Commands Executed:**
+  - `mvn test-compile`
+  - `mvn test -Dtest=HighConcurrencyIdempotencyIntegrationTest` (3 tests pass)
+  - `mvn test -Dtest=KafkaFailureAndCrashIntegrationTest` (3 tests pass)
+  - `mvn test -Dtest=ResilienceAndFencingIntegrationTest` (4 tests pass)
+  - `mvn test` (Full regression: 61 tests pass)
+- **Results:**
+  ```text
+  [INFO] Results:
+  [INFO] 
+  [INFO] Tests run: 61, Failures: 0, Errors: 0, Skipped: 0
+  [INFO] 
+  [INFO] ------------------------------------------------------------------------
+  [INFO] BUILD SUCCESS
+  [INFO] ------------------------------------------------------------------------
+  [INFO] Total time:  54.725 s
+  ```
+

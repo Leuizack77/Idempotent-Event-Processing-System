@@ -1,4 +1,7 @@
 E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\AbstractPostgresIntegrationTest.java
+E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\concurrency\HighConcurrencyIdempotencyIntegrationTest.java
+E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\concurrency\KafkaFailureAndCrashIntegrationTest.java
+E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\concurrency\ResilienceAndFencingIntegrationTest.java
 E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\controller\EventIngestionControllerTest.java
 E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\EventProcessorApplicationTests.java
 E:\Idempotent Event Processing System\src\test\java\com\example\eventprocessor\idempotency\IdempotencyEngineIntegrationTest.java

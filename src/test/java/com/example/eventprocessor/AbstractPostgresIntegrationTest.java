@@ -42,4 +42,12 @@ public abstract class AbstractPostgresIntegrationTest {
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
     }
+
+    public static void pauseRedis() {
+        redis.getDockerClient().pauseContainerCmd(redis.getContainerId()).exec();
+    }
+
+    public static void unpauseRedis() {
+        redis.getDockerClient().unpauseContainerCmd(redis.getContainerId()).exec();
+    }
 }
