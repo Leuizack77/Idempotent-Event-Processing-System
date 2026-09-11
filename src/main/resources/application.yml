@@ -31,6 +31,11 @@ spring:
       acks: all
       properties:
         enable.idempotence: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: ${REDIS_TIMEOUT:2000ms}
 kafka:
   retry:
     max-attempts: ${KAFKA_RETRY_MAX_ATTEMPTS:3}
@@ -60,3 +65,5 @@ logging:
 
 idempotency:
   processing-lease-duration: ${IDEMPOTENCY_LEASE_DURATION:60s}
+  cache:
+    ttl: ${IDEMPOTENCY_CACHE_TTL:24h}

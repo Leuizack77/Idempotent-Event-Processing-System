@@ -1,5 +1,6 @@
 package com.example.eventprocessor.idempotency;
 
+import com.example.eventprocessor.cache.IdempotencyCacheService;
 import com.example.eventprocessor.exception.EventProcessingInProgressException;
 import com.example.eventprocessor.exception.StaleProcessingLeaseException;
 import com.example.eventprocessor.kafka.consumer.KafkaRetryClassifier;
@@ -11,8 +12,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Default implementation of IdempotencyEngine.
- * Orchestrates event reservation, transactional business execution with atomic completion,
- * and isolated failure / retry transitions.
+ * Orchestrates Redis fast-path caching, PostgreSQL event reservation,
+ * transactional business execution with atomic completion, and isolated failure / retry transitions.
  */
 @Component
 public class IdempotencyEngineImpl implements IdempotencyEngine {
@@ -22,14 +23,17 @@ public class IdempotencyEngineImpl implements IdempotencyEngine {
     private final IdempotencyService idempotencyService;
     private final TransactionalBusinessExecutor transactionalBusinessExecutor;
     private final KafkaRetryClassifier retryClassifier;
+    private final IdempotencyCacheService idempotencyCacheService;
 
     public IdempotencyEngineImpl(
             IdempotencyService idempotencyService,
             TransactionalBusinessExecutor transactionalBusinessExecutor,
-            KafkaRetryClassifier retryClassifier) {
+            KafkaRetryClassifier retryClassifier,
+            IdempotencyCacheService idempotencyCacheService) {
         this.idempotencyService = idempotencyService;
         this.transactionalBusinessExecutor = transactionalBusinessExecutor;
         this.retryClassifier = retryClassifier;
+        this.idempotencyCacheService = idempotencyCacheService;
     }
 
     @Override
@@ -37,11 +41,18 @@ public class IdempotencyEngineImpl implements IdempotencyEngine {
         String eventId = envelope.eventId();
         log.info("Idempotency engine evaluating event: eventId={}, eventType={}", eventId, envelope.eventType());
 
-        // 1. PostgreSQL authoritative reservation (isolated transaction)
+        // 1. Redis fast-path read (bypasses PostgreSQL reservation on cache hit)
+        if (idempotencyCacheService.isCompleted(eventId)) {
+            log.info("Redis cache HIT: eventId={} is already COMPLETED. Skipping PostgreSQL reservation and business execution.", eventId);
+            return ProcessingResult.SKIPPED_DUPLICATE;
+        }
+
+        // 2. PostgreSQL authoritative reservation (isolated transaction)
         ReservationResult reservation = idempotencyService.tryReserve(envelope);
 
         if (reservation.isAlreadyCompleted()) {
-            log.info("Duplicate event detected in PostgreSQL (already COMPLETED): eventId={}. Skipping business execution.", eventId);
+            log.info("Duplicate event detected in PostgreSQL (already COMPLETED): eventId={}. Populating cache and skipping business execution.", eventId);
+            idempotencyCacheService.markCompleted(eventId);
             return ProcessingResult.SKIPPED_DUPLICATE;
         }
 
@@ -50,12 +61,15 @@ public class IdempotencyEngineImpl implements IdempotencyEngine {
             throw new EventProcessingInProgressException(eventId);
         }
 
-        // 2. Reservation acquired: execute business logic & commit COMPLETED atomically
+        // 3. Reservation acquired: execute business logic & commit COMPLETED atomically
         String token = reservation.processingToken();
         log.info("Event successfully reserved: eventId={}, token={}. Executing business transaction.", eventId, token);
         try {
             transactionalBusinessExecutor.executeAndComplete(envelope, token);
             log.info("Business execution and COMPLETED state successfully committed: eventId={}, token={}", eventId, token);
+
+            // 4. Post-commit non-transactional cache write
+            idempotencyCacheService.markCompleted(eventId);
             return ProcessingResult.SUCCESS;
         } catch (StaleProcessingLeaseException e) {
             log.warn("Worker fenced out for eventId={}: {}. A newer worker has taken over processing. Dropping execution without modifying state.",
