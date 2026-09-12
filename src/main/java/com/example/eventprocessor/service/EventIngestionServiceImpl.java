@@ -1,5 +1,6 @@
 package com.example.eventprocessor.service;
 
+import com.example.eventprocessor.config.MdcFilter;
 import com.example.eventprocessor.dto.request.EventRequestDto;
 import com.example.eventprocessor.dto.response.EventResponseDto;
 import com.example.eventprocessor.entity.EventStatus;
@@ -11,6 +12,7 @@ import com.example.eventprocessor.kafka.producer.KafkaEventProducer;
 import com.example.eventprocessor.repository.ProcessedEventRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +46,9 @@ public class EventIngestionServiceImpl implements EventIngestionService {
     public EventResponseDto ingestEvent(EventRequestDto request) {
         String eventId = request.eventId().trim();
         String eventType = request.eventType().trim().toUpperCase();
+
+        MDC.put(MdcFilter.EVENT_ID_KEY, eventId);
+        MDC.put(MdcFilter.EVENT_TYPE_KEY, eventType);
 
         validateEventType(eventType);
         validatePayload(eventType, request.payload());
