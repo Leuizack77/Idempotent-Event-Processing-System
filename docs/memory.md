@@ -4,8 +4,8 @@
 ---
 
 ### 1. Project State Overview
-- **Current Phase:** Phase 10 (Docker & Docker Compose Implementation)
-- **Status:** Docker infrastructure configured (`Dockerfile`, `docker-compose.yml`, `.env.example`, `.gitignore`). Application packaged and validated with Java 21, KRaft Kafka (3.8.0), PostgreSQL 16 Alpine, and Redis 7.2 Alpine. Docker Compose schema validated via `docker compose config`. Runtime container startup and full stack smoke testing require host Docker Desktop daemon to be active.
+- **Current Phase:** Phase 12 (Documentation & Final Verification)
+- **Status:** Complete. Production-grade `README.md` and comprehensive `docs/interview_guide.md` created based strictly on the verified codebase. All 12 phases of the Idempotent Event Processing System are implemented, documented, and regression-verified with 67/67 passing integration tests. Docker Compose infrastructure validated. Production readiness and architectural tradeoffs documented.
 
 ---
 
@@ -727,4 +727,57 @@
 
 ### 4. Phase Progression Status
 - **Completed Phases:** Phase 1 through Phase 11.
-- **Current Status:** Phase 11 (Observability and Production Readiness) fully implemented, verified with 67/67 passing integration tests, and documented. Ready for Phase 12 (Documentation and Interview Readiness).
+- **Current Status:** Phase 11 (Observability and Production Readiness) fully implemented, verified with 67/67 passing integration tests, and documented. Ready for Phase 12 (Documentation and Final Verification).
+
+---
+
+## Phase 12: Documentation and Final Verification
+
+### 1. Phase Objective
+Finalize comprehensive, production-grade project documentation and conduct final regression verification across the entire repository. Ensure documentation strictly reflects the implemented Java 21, Spring Boot 3.3.4, Apache Kafka, PostgreSQL 16, and Redis 7.2 architecture without inventing unverified features.
+
+### 2. Deliverables Produced
+1. **Root `README.md`:**
+   - Authored complete, production-grade documentation covering overview, distributed systems problem statement, core guarantees, Mermaid architecture and sequence diagrams, technology stack table, project directory structure, prerequisites, Docker quickstart, environment configuration, REST API reference with real curl examples, Kafka messaging pipeline, idempotency engine deep-dive, Redis fail-open behavior, retry & DLQ classification, observability & Prometheus endpoints, test coverage, and production-readiness tradeoffs.
+   - Clarified that message delivery is explicitly at-least-once, while the business effect is guaranteed exactly-once through database-level idempotency and fencing tokens.
+   - Explicitly clarified that `GET /api/events/{eventId}` is NOT implemented.
+2. **Technical Interview Preparation Guide (`docs/interview_guide.md`):**
+   - Created a senior/staff engineer level interview preparation guide structured into 20 core topics with direct 30-second answers, deep theoretical explanations, exact codebase implementation details, likely interviewer follow-ups, and strong follow-up answers.
+   - Included 60-second and 5-minute executive architectural walkthrough pitches.
+3. **Documentation Alignment & Corrections:**
+   - Reconciled documentation with actual codebase reality:
+     - Clarified that `GET /api/events/{eventId}` was conceptualized in Phase 3 planning but remains deliberately unimplemented in the actual REST API surface (only `POST /api/events` is active).
+     - Confirmed that `RETRYING` is never a persisted entity status; it is tracked dynamically via `retry_count`.
+     - Confirmed that Redis operates in a strictly non-authoritative, fail-open capacity.
+     - Confirmed that single-node Docker Compose is for local development and testing, noting multi-node HA requirements for production.
+
+### 3. Verification Commands & Exact Results
+- **Full Test Suite Regression:**
+  - Command: `mvn clean test`
+  - Result:
+    ```text
+    [INFO] Results:
+    [INFO] 
+    [INFO] Tests run: 67, Failures: 0, Errors: 0, Skipped: 0
+    [INFO] 
+    [INFO] ------------------------------------------------------------------------
+    [INFO] BUILD SUCCESS
+    [INFO] ------------------------------------------------------------------------
+    [INFO] Total time:  01:08 min
+    ```
+- **Docker Compose Configuration Validation:**
+  - Command: `docker compose config`
+  - Result: Validation succeeded with exit code 0. Validated services `postgres`, `kafka`, `redis`, and `app` on `event-network`.
+
+### 4. Important Final Architecture Summary
+- **Ingestion & Transport:** Synchronous HTTP ingestion (`POST /api/events`) returns `202 Accepted` and publishes to Kafka `events` topic with `key = eventId` (partition affinity), `acks=all`, and `enable.idempotence=true`.
+- **Deduplication Engine:** Two-tier pipeline: Tier 1 (Redis fast-path cache `event-processing:{eventId}` -> `"COMPLETED"`, TTL 24h) and Tier 2 (PostgreSQL `processed_events` authoritative reservation using atomic conditional SQL and unique constraint).
+- **Lease & Fencing:** 60-second processing leases reclaim crashed workers; unique UUID `processingToken` prevents stale or zombie workers from committing out-of-order mutations.
+- **Transaction Atomicity:** Domain mutations (e.g. `payments`) and status transition to `COMPLETED` commit atomically in a single relational database transaction.
+- **Resilience:** Redis is fail-open; transient failures undergo 3 exponential backoff retries (1s, 2s, 4s); fatal poison pills route immediately to `events.dlq` enriched with diagnostic headers.
+- **Observability:** `MdcFilter` propagates trace and correlation IDs across HTTP and Kafka boundaries; Micrometer and Actuator export Prometheus metrics (`events.processed.total`, `events.duplicate.total`, `events.dlq.total`, `events.processing.duration`).
+
+### 5. Final Project Status
+- **All Phases Complete:** Phase 1 through Phase 12 fully implemented, verified, and documented.
+- **Regression Status:** 67/67 integration tests passing (0 failures, 0 errors, 0 skipped).
+- **Working Tree:** Clean. Ready for final local commit.
