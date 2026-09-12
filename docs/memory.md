@@ -649,3 +649,82 @@
 - Check container status: `docker compose ps`
 - View application logs: `docker compose logs -f app`
 - Stop full stack: `docker compose down -v`
+
+---
+
+## Phase 11: Observability and Production Readiness
+
+### 1. Key Architectural Decisions & Guarantees
+1. **Contextual Distributed Tracing via MDC:**
+   - Unified trace correlation throughout the event lifecycle across HTTP ingestion, asynchronous Kafka publishing, Kafka consumption, business execution, and Dead Letter Queue (DLQ) processing.
+   - MDC variables populated: `traceId`, `correlationId`, `eventId`, `eventType`.
+   - `MdcFilter` (`OncePerRequestFilter`, `@Order(Ordered.HIGHEST_PRECEDENCE)`):
+     - Extracts `X-Correlation-ID` or `X-Trace-ID` request headers.
+     - Generates a unique correlation ID (`tr-<uuid8>`) if absent.
+     - Sets response headers `X-Correlation-ID` and `X-Trace-ID`.
+     - Cleans up thread-local MDC in a `finally` block to prevent leaks in container thread pools.
+   - Logback formatting pattern in all environments (`application.yml`, `application-docker.yml`, `application-test.yml`):
+     `%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [traceId=%X{traceId}, eventId=%X{eventId}, eventType=%X{eventType}] - %msg%n`.
+   - `KafkaEventProducer`: Propagates `X-Trace-ID` and `X-Correlation-ID` byte headers into Kafka `ProducerRecord`. Restores MDC in `future.whenComplete` callback threads for asynchronous log correlation.
+   - `KafkaEventConsumer` & `KafkaDlqConsumer`: Directly extracts `X-Trace-ID` and `X-Correlation-ID` headers from `ConsumerRecord`, initializes MDC context, logs received record, executes idempotency engine, and guarantees MDC cleanup in `finally`.
+2. **Domain-Specific Micrometer Metrics:**
+   - Dedicated `EventMetrics` component tracks:
+     - `events.processed.total` (Counter with tags `eventType`, `status=SUCCESS`): Incremented upon atomic commit of business execution and idempotency completion.
+     - `events.duplicate.total` (Counter with tags `eventType`, `source=REDIS|POSTGRES`): Incremented when duplicate event is intercepted by the Redis completed cache or PostgreSQL authoritative reservation.
+     - `events.dlq.total` (Counter with tags `eventType`, `reason`): Incremented in Spring Kafka error handler's composite recoverer upon terminal routing to `events.dlq`.
+     - `events.processing.duration` (Timer with tags `eventType`, `result=SUCCESS|DUPLICATE|FAILED`): Accurately times end-to-end execution of `IdempotencyEngineImpl.process()`.
+3. **Production-Ready Actuator & Prometheus Infrastructure:**
+   - Dependency: `io.micrometer:micrometer-registry-prometheus`.
+   - Exposed endpoints: `health,info,metrics,prometheus`.
+   - Health probes: Liveness (`/actuator/health/liveness`) and Readiness (`/actuator/health/readiness`) enabled.
+   - Prometheus metrics export: `management.prometheus.metrics.export.enabled: true`.
+   - Prometheus endpoint: `/actuator/prometheus` scraping OpenMetrics/Prometheus formatted data.
+   - Backward compatibility preserved: 4-argument constructor in `IdempotencyEngineImpl` maintained for test harnesses while 5-argument constructor enables `@Nullable EventMetrics` injection.
+
+---
+
+### 2. Implementation Summary
+- **Dependencies (`pom.xml`):** Added `io.micrometer:micrometer-registry-prometheus`.
+- **MDC Filter (`MdcFilter.java`):** Highest precedence servlet filter managing request correlation and MDC lifecycle.
+- **Metrics Component & Config (`EventMetrics.java`, `MetricsConfig.java`):** Defines domain metrics and customizes `MeterRegistry` with common service tags.
+- **Pipeline MDC Instrumentation:**
+  - `EventIngestionServiceImpl.java`: Populates `eventId` and `eventType` in MDC during synchronous acceptance.
+  - `KafkaEventProducer.java`: Propagates correlation headers to Kafka and restores MDC context in delivery callbacks.
+  - `KafkaEventConsumer.java`: Directly extracts trace headers from `ConsumerRecord`, sets MDC, and cleans up.
+  - `KafkaDlqConsumer.java`: Directly extracts trace headers from DLQ `ConsumerRecord`, sets MDC, and cleans up.
+  - `KafkaConfig.java`: Injects `EventMetrics` into `defaultErrorHandler`'s `compositeRecoverer` to increment `events.dlq.total` upon DLQ transitions and preserves trace headers on DLQ records.
+  - `IdempotencyEngineImpl.java`: Instruments duration timers and counters across Redis fast-path, PostgreSQL deduplication, and business commit paths.
+- **Integration Tests (`ObservabilityIntegrationTest.java`):** Comprehensive 6-test suite verifying:
+  1. Actuator `/actuator/health`, `/actuator/health/liveness`, `/actuator/health/readiness` return `UP`.
+  2. Actuator `/actuator/info` and `/actuator/metrics` endpoints are exposed and functional.
+  3. MDC filter propagates `X-Correlation-ID` and `X-Trace-ID` and generates `tr-` fallback.
+  4. Events processing increments `events.processed.total`, records `events.processing.duration`, and tracks `events.duplicate.total` on re-submission.
+  5. Prometheus scrape endpoint `/actuator/prometheus` exports scrape format with custom metrics.
+  6. DLQ transition increments `events.dlq.total` with `eventType` and `reason` tags.
+
+---
+
+### 3. Tests Executed & Exact Maven Results
+- **Commands Executed:**
+  - `mvn clean compile`
+  - `mvn test-compile`
+  - `mvn test -Dtest=ObservabilityIntegrationTest` (6/6 tests pass)
+  - `mvn clean test` (Full regression: 67/67 tests pass)
+  - `mvn clean package -DskipTests` (Fat JAR built successfully)
+  - `docker compose config` (Valid configuration)
+- **Results:**
+  ```text
+  [INFO] Results:
+  [INFO]
+  [INFO] Tests run: 67, Failures: 0, Errors: 0, Skipped: 0
+  [INFO]
+  [INFO] ------------------------------------------------------------------------
+  [INFO] BUILD SUCCESS
+  [INFO] ------------------------------------------------------------------------
+  ```
+
+---
+
+### 4. Phase Progression Status
+- **Completed Phases:** Phase 1 through Phase 11.
+- **Current Status:** Phase 11 (Observability and Production Readiness) fully implemented, verified with 67/67 passing integration tests, and documented. Ready for Phase 12 (Documentation and Interview Readiness).

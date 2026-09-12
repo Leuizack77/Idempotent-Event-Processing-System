@@ -1,9 +1,11 @@
 package com.example.eventprocessor.config;
 
 import com.example.eventprocessor.entity.EventStatus;
+import com.example.eventprocessor.entity.ProcessedEventEntity;
 import com.example.eventprocessor.exception.StaleProcessingLeaseException;
 import com.example.eventprocessor.kafka.consumer.KafkaRetryClassifier;
 import com.example.eventprocessor.kafka.model.EventEnvelope;
+import com.example.eventprocessor.metrics.EventMetrics;
 import com.example.eventprocessor.repository.ProcessedEventRepository;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -34,6 +36,7 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.lang.Nullable;
 import org.springframework.util.backoff.ExponentialBackOff;
 
 import java.nio.charset.StandardCharsets;
@@ -127,6 +130,17 @@ public class KafkaConfig {
             headers.add("X-Original-Offset", String.valueOf(record.offset()).getBytes(StandardCharsets.UTF_8));
             headers.add("X-Failed-Timestamp", Instant.now().toString().getBytes(StandardCharsets.UTF_8));
 
+            if (record.headers() != null) {
+                org.apache.kafka.common.header.Header traceHeader = record.headers().lastHeader(MdcFilter.HEADER_TRACE_ID);
+                if (traceHeader != null) {
+                    headers.add(MdcFilter.HEADER_TRACE_ID, traceHeader.value());
+                }
+                org.apache.kafka.common.header.Header corrHeader = record.headers().lastHeader(MdcFilter.HEADER_CORRELATION_ID);
+                if (corrHeader != null) {
+                    headers.add(MdcFilter.HEADER_CORRELATION_ID, corrHeader.value());
+                }
+            }
+
             org.apache.kafka.common.header.Header deliveryAttemptHeader = record.headers().lastHeader(KafkaHeaders.DELIVERY_ATTEMPT);
             if (deliveryAttemptHeader != null) {
                 headers.add("X-Retry-Count", deliveryAttemptHeader.value());
@@ -144,7 +158,8 @@ public class KafkaConfig {
             DeadLetterPublishingRecoverer deadLetterPublishingRecoverer,
             KafkaRetryProperties retryProperties,
             ProcessedEventRepository processedEventRepository,
-            KafkaRetryClassifier retryClassifier) {
+            KafkaRetryClassifier retryClassifier,
+            @Nullable EventMetrics eventMetrics) {
 
         ExponentialBackOff backOff = new ExponentialBackOff(
                 retryProperties.getInitialInterval().toMillis(),
@@ -163,6 +178,23 @@ public class KafkaConfig {
 
             // 2. Mark event status as FAILED in PostgreSQL (if not fenced out)
             markFailedOnRecovery(record, exception, processedEventRepository);
+
+            // 3. Track DLQ metric
+            if (eventMetrics != null) {
+                String eventType = "UNKNOWN";
+                if (record.value() instanceof EventEnvelope env) {
+                    eventType = env.eventType();
+                } else if (record.key() instanceof String k) {
+                    try {
+                        eventType = processedEventRepository.findByEventId(k)
+                                .map(ProcessedEventEntity::getEventType)
+                                .orElse("UNKNOWN");
+                    } catch (Exception ignored) {}
+                }
+                Throwable root = exception != null ? org.springframework.core.NestedExceptionUtils.getMostSpecificCause(exception) : null;
+                String reason = root != null ? root.getClass().getSimpleName() : "UNKNOWN";
+                eventMetrics.incrementDlq(eventType, reason);
+            }
         };
 
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(compositeRecoverer, backOff);
