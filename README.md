@@ -7,6 +7,7 @@
 
 ## Table of Contents
 - [1. Overview](#1-overview)
+- [🚀 Quick Start & Manual Testing Guide](#-quick-start--manual-testing)
 - [2. Problem Statement](#2-problem-statement)
 - [3. Core Architecture Guarantees](#3-core-architecture-guarantees)
 - [4. High-Level Architecture](#4-high-level-architecture)
@@ -32,6 +33,27 @@
 The **Idempotent Event Processing System** is an enterprise-grade backend service designed to safely ingest, transport, and process critical domain events (e.g., payments, orders) in distributed environments. 
 
 Distributed event-driven systems inherently rely on networks where network partitions, broker retries, consumer crashes, and rebalances cause identical messages to be delivered multiple times. This system guarantees that regardless of how many times a message is delivered by Apache Kafka or submitted by clients, **business operations execute exactly once** without data corruption, orphaned records, or race conditions.
+
+---
+
+## 🚀 Quick Start & Manual Testing
+
+> **Beginner-Friendly Hands-On Guide:** For complete step-by-step instructions on running the entire system locally, sending test events, observing idempotency in real time, inspecting Kafka/PostgreSQL/Redis, and testing edge cases, refer to the [Quick Start & Manual Testing Guide](docs/QUICK_START_AND_MANUAL_TESTING.md).
+
+New to the project or looking for complete end-to-end execution steps? The dedicated guide covers:
+* **Prerequisites & Setup:** Git cloning, Docker Desktop verification, and environment files
+* **System Startup:** Docker Compose initialization and multi-container orchestration
+* **Health & Readiness Verification:** Checking Actuator `/health`, Kafka brokers, and database connectivity
+* **Manual Event Submission:** Sending sample Payment and Order events via REST API (`curl` commands)
+* **Durable Persistence Verification:** Inspecting PostgreSQL tables (`processed_events`, `payments`, `orders`)
+* **Message Broker Inspection:** Verifying Kafka topics, offsets, and consumer group lag
+* **In-Memory Cache Optimization:** Checking Redis cache keys and TTLs
+* **Duplicate Event Testing:** Demonstrating idempotency and deduplication across multiple submissions
+* **Failure & Resilience Testing:** Triggering retries, recovering from failures, and inspecting Dead Letter Queue (DLQ) records
+* **Observability & Monitoring:** Structured logging (MDC tracing), Prometheus metrics, and Actuator endpoints
+* **Troubleshooting & Teardown:** Common issues, port conflict resolution, log analysis, and clean shutdown
+
+👉 **[Open the Quick Start & Manual Testing Guide (docs/QUICK_START_AND_MANUAL_TESTING.md)](docs/QUICK_START_AND_MANUAL_TESTING.md)**
 
 ---
 
@@ -299,6 +321,8 @@ E:\Idempotent Event Processing System
 ---
 
 ## 9. Quick Start — Docker Compose
+
+> 💡 **Looking for step-by-step beginner testing and verification?** For complete hands-on execution steps with curl commands, database verification, Kafka offset inspection, and failure scenarios, see the [Quick Start & Manual Testing Guide](docs/QUICK_START_AND_MANUAL_TESTING.md).
 
 The entire stack (Application, PostgreSQL 16, Apache Kafka 3.8, and Redis 7.2) can be built and launched via Docker Compose.
 
