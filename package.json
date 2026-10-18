@@ -1,0 +1,11 @@
+{
+  "name": "idempotent-event-processing-system-root",
+  "private": true,
+  "description": "Root workspace runner for Idempotent Event Processing System",
+  "scripts": {
+    "preview": "npm --prefix Frontend run preview",
+    "dev": "npm --prefix Frontend run dev",
+    "build": "npm --prefix Frontend run build",
+    "start": "npm --prefix Frontend run start"
+  }
+}
