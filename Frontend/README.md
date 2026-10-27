@@ -1,6 +1,8 @@
-# Idempotent Event Processing System — Distributed Observability Frontend
+# FluxGuard 🛡️ — Distributed Idempotent Event Processing & 3D Observability Engine
 
-Modern, high-performance distributed systems dashboard built with **Next.js 16**, **React 19**, **Three.js (WebGL)**, and **Tailwind CSS v4**.
+> *"Never process twice."*
+
+High-performance distributed systems dashboard and chaos cockpit built with **Next.js 16**, **React 19**, **Three.js (WebGL)**, and **Tailwind CSS v4**.
 
 ---
 

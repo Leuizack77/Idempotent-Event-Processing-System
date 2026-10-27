@@ -14,6 +14,7 @@ import {
   Zap,
   Repeat
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { eventService } from '@/lib/api';
 import { OrderRecord, PaymentRecord, ProcessedEventRecord } from '@/lib/types';
 
@@ -58,16 +59,16 @@ export const SplitScreenProof: React.FC<SplitScreenProofProps> = ({ events, paym
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm">
+    <div className="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl relative overflow-hidden">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 sm:pb-6 border-b border-slate-800 gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 sm:pb-6 border-b border-slate-800/80 gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
               <Split className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400 shrink-0" />
               <span>Side-by-Side Proof: At-Least-Once Delivery vs. Exactly-Once Effect</span>
             </h2>
-            <span className="hidden sm:inline-flex text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold items-center gap-1">
+            <span className="hidden sm:inline-flex text-[11px] px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold items-center gap-1 shadow-[0_0_12px_rgba(16,185,129,0.2)]">
               <ShieldCheck className="w-3.5 h-3.5" /> Zero Double Charging
             </span>
           </div>
@@ -78,31 +79,35 @@ export const SplitScreenProof: React.FC<SplitScreenProofProps> = ({ events, paym
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             onClick={handleNewTestScenario}
-            className="text-[11px] sm:text-xs px-2.5 sm:px-3 py-1.5 bg-slate-950 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-800 transition flex items-center gap-1.5 active:scale-95"
+            className="text-[11px] sm:text-xs px-3 sm:px-3.5 py-2 bg-slate-950/80 hover:bg-slate-800/80 text-slate-300 rounded-xl border border-slate-800 transition flex items-center gap-1.5 shadow-sm"
           >
             <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
             <span>New Key</span>
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
             onClick={handleDuplicateClick}
             disabled={isSubmitting}
-            className="text-[11px] sm:text-xs px-3 sm:px-4 py-1.5 sm:py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl shadow-lg shadow-indigo-600/20 transition flex items-center gap-1.5 disabled:opacity-50 active:scale-95"
+            className="text-[11px] sm:text-xs px-3.5 sm:px-4 py-2 bg-gradient-to-r from-indigo-600 via-indigo-500 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/25 border border-indigo-400/30 transition flex items-center gap-1.5 disabled:opacity-50"
           >
             <Repeat className="w-3.5 h-3.5" />
             <span>Duplicate for <span className="font-mono">{selectedEventId}</span></span>
-          </button>
+          </motion.button>
         </div>
       </div>
 
       {/* Split-Screen Grid */}
       <div className="mt-4 sm:mt-6 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         {/* Left Side: Transport Ingestion Stream */}
-        <div className="lg:col-span-6 bg-slate-950 p-4 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-800/80 flex flex-col justify-between">
+        <div className="lg:col-span-6 bg-slate-950/80 p-4 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-800/80 flex flex-col justify-between shadow-inner">
           <div>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-amber-400" />
                 <h3 className="text-sm font-bold text-white">Transport Ingestion Log</h3>
@@ -117,44 +122,49 @@ export const SplitScreenProof: React.FC<SplitScreenProofProps> = ({ events, paym
             </p>
 
             <div className="mt-4 space-y-2.5 font-mono text-xs max-h-[340px] overflow-y-auto pr-1">
-              {matchingEvents.length === 0 ? (
-                <div className="p-6 text-center text-slate-500 text-xs font-sans">
-                  Target key <code>{selectedEventId}</code> has not been submitted yet.
-                  <br />
-                  Click <strong>&quot;Send Duplicate&quot;</strong> above to start!
-                </div>
-              ) : (
-                matchingEvents.map((evt, idx) => (
-                  <div
-                    key={evt.id}
-                    className={`p-3 rounded-xl border flex items-center justify-between ${
-                      idx === matchingEvents.length - 1 && matchingEvents.length > 1
-                        ? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-300'
-                        : 'bg-slate-900 border-slate-800 text-slate-300'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-bold text-slate-500">#{matchingEvents.length - idx}</span>
-                        <span className="font-bold text-white text-xs">{evt.eventId}</span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
-                          {evt.deduplicationSource === 'NONE' ? '1st Delivery' : evt.deduplicationSource}
-                        </span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-1 font-sans">
-                        Token: {evt.processingToken.substring(0, 8)}... | Duration: {evt.durationMs}ms
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> ACK
-                      </span>
-                      <span className="text-[10px] text-slate-500 block">{evt.createdAt.split('T')[1].substring(0, 8)}</span>
-                    </div>
+              <AnimatePresence>
+                {matchingEvents.length === 0 ? (
+                  <div className="p-6 text-center text-slate-500 text-xs font-sans">
+                    Target key <code>{selectedEventId}</code> has not been submitted yet.
+                    <br />
+                    Click <strong>&quot;Send Duplicate&quot;</strong> above to start!
                   </div>
-                ))
-              )}
+                ) : (
+                  matchingEvents.map((evt, idx) => (
+                    <motion.div
+                      key={evt.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.25 }}
+                      className={`p-3 rounded-xl border flex items-center justify-between ${
+                        idx === matchingEvents.length - 1 && matchingEvents.length > 1
+                          ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300 shadow-[0_0_15px_rgba(99,102,241,0.2)]'
+                          : 'bg-slate-900/80 border-slate-800 text-slate-300'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold text-slate-500">#{matchingEvents.length - idx}</span>
+                          <span className="font-bold text-white text-xs">{evt.eventId}</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400">
+                            {evt.deduplicationSource === 'NONE' ? '1st Delivery' : evt.deduplicationSource}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-1 font-sans">
+                          Token: {evt.processingToken.substring(0, 8)}... | Duration: {evt.durationMs}ms
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> ACK
+                        </span>
+                        <span className="text-[10px] text-slate-500 block">{evt.createdAt.split('T')[1].substring(0, 8)}</span>
+                      </div>
+                    </motion.div>
+                  ))
+                )}
+              </AnimatePresence>
             </div>
           </div>
 

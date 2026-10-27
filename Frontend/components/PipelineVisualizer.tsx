@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { ArrowRight, CheckCircle2, Database, Layers, Radio, Shield, Zap, AlertOctagon, HelpCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export const PipelineVisualizer: React.FC = () => {
   const [activeStep, setActiveStep] = useState<number | null>(null);
@@ -55,73 +56,66 @@ export const PipelineVisualizer: React.FC = () => {
   ];
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 sm:pb-6 border-b border-slate-800 gap-3">
+    <div className="glass-panel rounded-2xl sm:rounded-3xl p-5 sm:p-7 shadow-xl relative overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 sm:pb-6 border-b border-slate-800/80 gap-3">
         <div>
           <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
             <Radio className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400 animate-pulse shrink-0" />
-            <span>Distributed Idempotency Pipeline Visualizer</span>
+            <span>Distributed Idempotency Pipeline Architecture</span>
           </h2>
           <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
             Hover or click on any pipeline node to inspect how each distributed system guarantee is enforced.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-[11px] sm:text-xs font-mono bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800 text-slate-400 self-start sm:self-auto">
-          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+        <div className="flex items-center gap-2 text-[11px] sm:text-xs font-mono bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-slate-300 self-start sm:self-auto shadow-inner">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shadow-[0_0_8px_rgba(52,211,153,1)]" />
           <span>Active Pipeline: KRaft Mode</span>
         </div>
       </div>
 
       {/* Visual Pipeline Nodes */}
-      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 relative">
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 relative">
         {steps.map((step, idx) => {
           const Icon = step.icon;
           const isSelected = activeStep === step.id;
 
           return (
-            <div key={step.id} className="flex flex-col items-center relative group">
-              <div
-                onClick={() => setActiveStep(step.id)}
-                className={`w-full p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[160px] ${
-                  isSelected
-                    ? 'bg-slate-800 border-indigo-500 shadow-lg shadow-indigo-500/20'
-                    : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50'
-                }`}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-mono font-bold text-slate-500">0{step.id}</span>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${step.badgeColor}`}>
-                      {step.tag}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Icon className="w-4 h-4 text-indigo-400 shrink-0" />
-                    <h3 className="text-sm font-semibold text-white leading-tight">{step.title}</h3>
-                  </div>
-                  <p className="text-xs font-mono text-slate-400">{step.subtitle}</p>
+            <motion.div 
+              key={step.id} 
+              whileHover={{ y: -4, scale: 1.01 }}
+              onClick={() => setActiveStep(step.id)}
+              className={`w-full p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between min-h-[170px] relative group ${
+                isSelected
+                  ? 'glass-panel-glow text-white shadow-lg'
+                  : 'glass-panel hover:border-indigo-500/40'
+              }`}
+            >
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs font-mono font-bold text-slate-500">0{step.id}</span>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${step.badgeColor}`}>
+                    {step.tag}
+                  </span>
                 </div>
-
-                <div className="pt-2 text-[11px] text-slate-400 line-clamp-2">{step.desc}</div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Icon className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <h3 className="text-sm font-bold text-white leading-tight">{step.title}</h3>
+                </div>
+                <p className="text-xs font-mono text-cyan-300/80">{step.subtitle}</p>
               </div>
 
-              {/* Arrow separator (hidden on mobile and last item) */}
-              {idx < steps.length - 1 && (
-                <div className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 text-slate-600">
-                  <ArrowRight className="w-4 h-4" />
-                </div>
-              )}
-            </div>
+              <div className="pt-2 text-[11px] text-slate-400 line-clamp-2">{step.desc}</div>
+            </motion.div>
           );
         })}
       </div>
 
       {/* Detailed Step Inspector Box */}
-      <div className="mt-8 bg-slate-950 border border-slate-800 rounded-xl p-5">
-        <div className="flex items-start gap-3">
+      <div className="mt-8 bg-slate-950/80 border border-slate-800/80 rounded-2xl p-5 shadow-inner">
+        <div className="flex items-start gap-3.5">
           <HelpCircle className="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" />
           <div>
-            <h4 className="text-sm font-semibold text-white">
+            <h4 className="text-sm font-bold text-white">
               {activeStep ? steps.find(s => s.id === activeStep)?.title : 'Understanding The Guarantees'}
             </h4>
             <p className="text-xs text-slate-400 mt-1 leading-relaxed">

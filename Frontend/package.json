@@ -1,6 +1,7 @@
 {
-  "name": "frontend",
+  "name": "fluxguard-frontend",
   "version": "0.1.0",
+  "description": "FluxGuard 3D WebGL Observability Frontend",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -12,6 +13,7 @@
   "dependencies": {
     "@types/three": "^0.186.0",
     "lucide-react": "^1.59.0",
+    "motion": "^14.6.0",
     "next": "16.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",

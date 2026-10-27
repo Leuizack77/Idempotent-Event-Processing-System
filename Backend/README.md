@@ -1,4 +1,4 @@
-# Idempotent Event Processing System
+# FluxGuard — Distributed Idempotent Event Processing Engine
 
 > **At-Least-Once Message Delivery with Exactly-Once Business Effect**
 > A high-throughput, fault-tolerant event processing architecture built with Java 21, Spring Boot 3.3.4, Apache Kafka, PostgreSQL, and Redis.

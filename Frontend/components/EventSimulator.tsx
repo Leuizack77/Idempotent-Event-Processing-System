@@ -13,6 +13,7 @@ import {
   Clock,
   Sparkles
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { eventService } from '@/lib/api';
 import { EventRequestDto } from '@/lib/types';
 
@@ -172,7 +173,7 @@ export const EventSimulator: React.FC<EventSimulatorProps> = ({ onEventSubmitted
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       {/* Event Configuration Panel */}
-      <div className="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm flex flex-col justify-between">
+      <div className="lg:col-span-7 glass-panel rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between pb-4 border-b border-slate-800 gap-2">
             <div>
@@ -358,7 +359,7 @@ export const EventSimulator: React.FC<EventSimulatorProps> = ({ onEventSubmitted
       </div>
 
       {/* Real-time Feedback & Diagnostics Log */}
-      <div className="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm flex flex-col justify-between">
+      <div className="lg:col-span-5 glass-panel rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-xl flex flex-col justify-between">
         <div>
           <div className="flex items-center justify-between pb-4 border-b border-slate-800">
             <h3 className="text-sm font-bold text-white flex items-center gap-2">

@@ -1,47 +1,51 @@
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\cache\IdempotencyCacheService.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\cache\RedisIdempotencyCacheService.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\config\IdempotencyProperties.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\config\KafkaConfig.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\config\KafkaRetryProperties.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\config\RedisConfig.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\controller\EventIngestionController.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\dto\request\EventRequestDto.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\dto\response\ErrorResponseDto.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\dto\response\EventResponseDto.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\dto\response\FieldErrorDto.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\entity\EventStatus.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\entity\OrderEntity.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\entity\PaymentEntity.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\entity\ProcessedEventEntity.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\EventProcessorApplication.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\exception\DuplicateBusinessEntityException.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\exception\DuplicateEventException.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\exception\EventProcessingInProgressException.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\exception\GlobalExceptionHandler.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\exception\InvalidEventException.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\exception\InvalidEventPayloadException.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\exception\StaleProcessingLeaseException.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\idempotency\IdempotencyEngine.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\idempotency\IdempotencyEngineImpl.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\idempotency\IdempotencyService.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\idempotency\IdempotencyServiceImpl.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\idempotency\ProcessingResult.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\idempotency\ReservationResult.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\idempotency\ReservationStatus.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\kafka\consumer\DefaultEventProcessingDelegate.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\kafka\consumer\EventProcessingDelegate.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\kafka\consumer\KafkaDlqConsumer.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\kafka\consumer\KafkaEventConsumer.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\kafka\consumer\KafkaRetryClassifier.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\kafka\model\EventEnvelope.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\kafka\producer\KafkaEventProducer.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\processing\BusinessEventProcessor.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\processing\EventProcessorRegistry.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\processing\OrderEventProcessor.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\processing\PaymentEventProcessor.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\processing\TransactionalBusinessExecutor.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\repository\OrderRepository.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\repository\PaymentRepository.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\repository\ProcessedEventRepository.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\service\EventIngestionService.java
-E:\Idempotent Event Processing System\src\main\java\com\example\eventprocessor\service\EventIngestionServiceImpl.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\cache\IdempotencyCacheService.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\cache\RedisIdempotencyCacheService.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\config\IdempotencyProperties.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\config\KafkaConfig.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\config\KafkaRetryProperties.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\config\MdcFilter.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\config\MetricsConfig.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\config\RedisConfig.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\controller\DashboardQueryController.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\controller\EventIngestionController.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\dto\request\EventRequestDto.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\dto\response\ErrorResponseDto.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\dto\response\EventResponseDto.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\dto\response\FieldErrorDto.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\entity\EventStatus.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\entity\OrderEntity.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\entity\PaymentEntity.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\entity\ProcessedEventEntity.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\EventProcessorApplication.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\exception\DuplicateBusinessEntityException.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\exception\DuplicateEventException.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\exception\EventProcessingInProgressException.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\exception\GlobalExceptionHandler.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\exception\InvalidEventException.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\exception\InvalidEventPayloadException.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\exception\StaleProcessingLeaseException.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\idempotency\IdempotencyEngine.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\idempotency\IdempotencyEngineImpl.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\idempotency\IdempotencyService.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\idempotency\IdempotencyServiceImpl.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\idempotency\ProcessingResult.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\idempotency\ReservationResult.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\idempotency\ReservationStatus.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\kafka\consumer\DefaultEventProcessingDelegate.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\kafka\consumer\EventProcessingDelegate.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\kafka\consumer\KafkaDlqConsumer.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\kafka\consumer\KafkaEventConsumer.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\kafka\consumer\KafkaRetryClassifier.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\kafka\model\EventEnvelope.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\kafka\producer\KafkaEventProducer.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\metrics\EventMetrics.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\processing\BusinessEventProcessor.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\processing\EventProcessorRegistry.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\processing\OrderEventProcessor.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\processing\PaymentEventProcessor.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\processing\TransactionalBusinessExecutor.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\repository\OrderRepository.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\repository\PaymentRepository.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\repository\ProcessedEventRepository.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\service\EventIngestionService.java
+E:\PROJECTS\Idempotent-Event-Processing-System\Backend\src\main\java\com\example\eventprocessor\service\EventIngestionServiceImpl.java

@@ -1,11 +1,14 @@
 {
-  "name": "idempotent-event-processing-system-root",
+  "name": "fluxguard-workspace",
   "private": true,
-  "description": "Root workspace runner for Idempotent Event Processing System",
+  "description": "FluxGuard: Distributed Idempotent Event Processing & 3D Observability Engine",
   "scripts": {
     "preview": "npm --prefix Frontend run preview",
     "dev": "npm --prefix Frontend run dev",
     "build": "npm --prefix Frontend run build",
     "start": "npm --prefix Frontend run start"
+  },
+  "dependencies": {
+    "motion": "^14.3.1"
   }
 }

@@ -14,6 +14,7 @@ import {
   Info,
   Server
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ProcessedEventRecord, TraceSpan } from '@/lib/types';
 
 interface TraceWaterfallProps {
@@ -61,15 +62,15 @@ export const TraceWaterfall: React.FC<TraceWaterfallProps> = ({ events }) => {
   const totalDuration = selectedEvent?.durationMs || 50;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm">
-      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 sm:pb-6 border-b border-slate-800 gap-4">
+    <div className="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl relative overflow-hidden">
+      <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 sm:pb-6 border-b border-slate-800/80 gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
               <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400 shrink-0" />
               <span>Distributed Trace Waterfall (MDC Tracing)</span>
             </h2>
-            <span className="hidden sm:inline-flex text-[11px] px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">
+            <span className="hidden sm:inline-flex text-[11px] px-2.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono shadow-[0_0_10px_rgba(99,102,241,0.2)]">
               Trace Propagation
             </span>
           </div>
@@ -84,7 +85,7 @@ export const TraceWaterfall: React.FC<TraceWaterfallProps> = ({ events }) => {
           <select
             value={selectedEvent?.id}
             onChange={e => setSelectedEventId(e.target.value)}
-            className="w-full sm:w-auto bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-indigo-500 cursor-pointer"
+            className="w-full sm:w-auto bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2 text-white font-mono text-xs focus:outline-none focus:border-indigo-500 cursor-pointer shadow-inner"
           >
             {events.map(evt => (
               <option key={evt.id} value={evt.id}>
@@ -98,7 +99,7 @@ export const TraceWaterfall: React.FC<TraceWaterfallProps> = ({ events }) => {
       {selectedEvent ? (
         <div className="mt-6 space-y-6">
           {/* Summary metadata bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950 p-4 rounded-xl border border-slate-800 text-xs font-mono">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-950/80 p-4 rounded-xl border border-slate-800/80 text-xs font-mono shadow-inner">
             <div>
               <span className="text-slate-500 block text-[11px] font-sans">Trace ID</span>
               <span className="text-indigo-300 font-bold">{selectedEvent.traceId}</span>
@@ -120,13 +121,19 @@ export const TraceWaterfall: React.FC<TraceWaterfallProps> = ({ events }) => {
           {/* Waterfall Spans Timeline */}
           <div className="space-y-3 font-mono text-xs">
             {selectedEvent.spans && selectedEvent.spans.length > 0 ? (
-              selectedEvent.spans.map((span) => {
+              selectedEvent.spans.map((span, idx) => {
                 const Icon = getServiceIcon(span.service);
                 const widthPercent = Math.max(8, (span.durationMs / totalDuration) * 100);
                 const leftPercent = Math.min(85, (span.offsetMs / totalDuration) * 100);
 
                 return (
-                  <div key={span.id} className="p-3 bg-slate-950/60 rounded-xl border border-slate-800/80 hover:border-slate-700 transition">
+                  <motion.div 
+                    key={span.id} 
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.04 }}
+                    className="p-3.5 bg-slate-950/70 rounded-xl border border-slate-800/80 hover:border-indigo-500/40 transition shadow-sm"
+                  >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 font-sans">
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${getServiceColor(span.service)} flex items-center gap-1`}>
@@ -136,18 +143,20 @@ export const TraceWaterfall: React.FC<TraceWaterfallProps> = ({ events }) => {
                         <span className="text-white font-medium text-xs font-mono">{span.name}</span>
                       </div>
                       <div className="flex items-center gap-3 text-xs font-mono text-slate-400">
-                        <span className="text-slate-300 font-bold">+{span.durationMs}ms</span>
+                        <span className="text-slate-200 font-bold">+{span.durationMs}ms</span>
                         <span className="text-[11px] text-slate-500">offset: {span.offsetMs}ms</span>
                       </div>
                     </div>
 
-                    {/* Timeline Gantt Bar */}
-                    <div className="w-full bg-slate-900 h-2.5 rounded-full relative overflow-hidden my-2">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-emerald-400 transition-all duration-500"
+                    {/* Timeline Gantt Bar with Motion Animation */}
+                    <div className="w-full bg-slate-900 h-2.5 rounded-full relative overflow-hidden my-2 p-[1px]">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${widthPercent}%` }}
+                        transition={{ duration: 0.5, delay: idx * 0.05, ease: 'easeOut' }}
+                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-cyan-400 to-emerald-400 shadow-[0_0_10px_rgba(99,102,241,0.6)]"
                         style={{
                           marginLeft: `${leftPercent}%`,
-                          width: `${widthPercent}%`,
                         }}
                       />
                     </div>
@@ -156,7 +165,7 @@ export const TraceWaterfall: React.FC<TraceWaterfallProps> = ({ events }) => {
                     <p className="text-[11px] text-slate-400 font-sans mt-1">
                       {span.details}
                     </p>
-                  </div>
+                  </motion.div>
                 );
               })
             ) : (

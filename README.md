@@ -1,6 +1,9 @@
-# Idempotent Event Processing System
+# FluxGuard 🛡️
+### Distributed Idempotent Event Processing & 3D Observability Engine
 
-A production-grade, fault-tolerant distributed event processing system ensuring **Exactly-Once Semantics** over **At-Least-Once Kafka streams** using two-phase idempotency (Redis L1 cache + PostgreSQL transactional fencing).
+> *"Never process twice."*
+
+A production-grade, fault-tolerant distributed event processing system ensuring **Exactly-Once Semantics** over **At-Least-Once Kafka streams** using two-phase idempotency (Redis L1 cache + PostgreSQL transactional fencing) and an interactive 3D WebGL observability cockpit.
 
 ---
 

@@ -20,6 +20,9 @@ public class EventProcessorRegistry {
         if (processors != null) {
             for (BusinessEventProcessor processor : processors) {
                 processorMap.put(processor.getSupportedEventType(), processor);
+                if ("PAYMENT_COMPLETED".equals(processor.getSupportedEventType())) {
+                    processorMap.put("PAYMENT_PROCESSED", processor);
+                }
             }
         }
     }

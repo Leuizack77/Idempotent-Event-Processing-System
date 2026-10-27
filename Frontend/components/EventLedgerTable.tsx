@@ -10,10 +10,11 @@ import {
   AlertTriangle, 
   Clock, 
   ShieldCheck, 
-  Key,
-  Layers,
+  Key, 
+  Layers, 
   Copy
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ProcessedEventRecord } from '@/lib/types';
 
 interface EventLedgerTableProps {
@@ -89,7 +90,7 @@ export const EventLedgerTable: React.FC<EventLedgerTableProps> = ({ events }) =>
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 shadow-sm">
+    <div className="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl relative overflow-hidden">
       {/* Header & Controls */}
       <div className="flex flex-col md:flex-row md:items-center justify-between pb-4 sm:pb-6 border-b border-slate-800 gap-4">
         <div>

@@ -28,6 +28,7 @@ public class EventIngestionServiceImpl implements EventIngestionService {
 
     private static final Set<String> SUPPORTED_EVENT_TYPES = Set.of(
             "PAYMENT_COMPLETED",
+            "PAYMENT_PROCESSED",
             "ORDER_CREATED"
     );
 
@@ -94,7 +95,7 @@ public class EventIngestionServiceImpl implements EventIngestionService {
             throw new InvalidEventException("payload must not be empty");
         }
 
-        if ("PAYMENT_COMPLETED".equals(eventType)) {
+        if ("PAYMENT_COMPLETED".equals(eventType) || "PAYMENT_PROCESSED".equals(eventType)) {
             requireField(payload, "paymentId");
             requireField(payload, "userId");
             requireField(payload, "amount");

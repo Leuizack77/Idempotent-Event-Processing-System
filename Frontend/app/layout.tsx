@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Idempotent Event Processing System | Cockpit",
-  description: "At-Least-Once Delivery with Exactly-Once Business Effect Dashboard",
+  title: "FluxGuard | Distributed Idempotent Event Processing & 3D Observability Engine",
+  description: "Fault-tolerant event stream protection guaranteeing Exactly-Once execution with 3D WebGL observability",
 };
 
 export default function RootLayout({

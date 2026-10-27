@@ -5,7 +5,6 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { 
   Box, 
-  Maximize2, 
   RotateCcw, 
   Sparkles, 
   Play, 
@@ -15,9 +14,12 @@ import {
   Layers, 
   Database, 
   ShieldCheck,
-  AlertOctagon
+  Server,
+  Activity,
+  HardDrive
 } from 'lucide-react';
 import { SystemMetrics } from '@/lib/types';
+import { motion } from 'motion/react';
 
 interface Cluster3DCanvasProps {
   metrics: SystemMetrics;
@@ -41,7 +43,7 @@ const NODES: NodeData[] = [
     name: 'REST Ingestion Gateway',
     category: 'Spring Boot 3.3',
     role: 'Synchronous validation, atomic SUBMITTED state insertion, MDC trace assignment',
-    position: [-6, 0.5, 0],
+    position: [-5.8, 0.4, 0],
     color: 0x38bdf8,
     emissive: 0x0284c7,
     stats: 'Port: 8080 • Non-blocking HTTP 202',
@@ -51,39 +53,39 @@ const NODES: NodeData[] = [
     name: 'Apache Kafka Cluster',
     category: 'KRaft Distributed Broker',
     role: 'Keyed partition routing (key=eventId), at-least-once transport, consumer group lag isolation',
-    position: [-1.8, 2.5, 1],
-    color: 0xfbbf24,
+    position: [-1.8, 2.0, 1],
+    color: 0xf59e0b,
     emissive: 0xd97706,
-    stats: 'Topic: "events" • 3 Partitions',
+    stats: 'Topic: "events" • 3 Partitions (0, 1, 2)',
   },
   {
     id: 'redis',
     name: 'Redis L1 Fast-Path Cache',
-    category: 'In-Memory Key-Value',
+    category: 'In-Memory Memory Core',
     role: 'Non-authoritative read-through caching. Sub-millisecond short-circuit (<3ms) for COMPLETED events',
-    position: [2.5, 2.5, -0.5],
-    color: 0x34d399,
+    position: [2.8, 2.0, -0.4],
+    color: 0x10b981,
     emissive: 0x059669,
     stats: 'TTL: 24h • Fail-Open Enabled',
   },
   {
     id: 'postgres',
     name: 'PostgreSQL 16 Master',
-    category: 'Authoritative Source of Truth',
+    category: 'Authoritative ACID Storage Array',
     role: 'ACID unique constraint (uq_processed_events_event_id), UUID fencing tokens, lease reclaims',
-    position: [3.5, -1.8, 1],
-    color: 0x818cf8,
-    emissive: 0x4f46e5,
+    position: [3.8, -1.5, 0.8],
+    color: 0x8b5cf6,
+    emissive: 0x6d28d9,
     stats: 'ACID • REQUIRES_NEW Isolated Txn',
   },
   {
     id: 'dlq',
     name: 'Dead Letter Queue (DLQ)',
-    category: 'Kafka Quarantine Topic',
+    category: 'Kafka Quarantine Isolation Vault',
     role: 'Poison pill isolation after 3 exponential backoff attempts. Prevents partition blockage',
-    position: [-1.5, -2.5, -1],
+    position: [-1.6, -2.2, -0.8],
     color: 0xf43f5e,
-    emissive: 0xe11d48,
+    emissive: 0xbe123c,
     stats: 'Topic: "events.dlq" • Poison Pill Safe',
   },
 ];
@@ -94,28 +96,31 @@ export const Cluster3DCanvas: React.FC<Cluster3DCanvasProps> = ({ metrics, onTri
   const [autoRotate, setAutoRotate] = useState<boolean>(true);
   const [pulseCount, setPulseCount] = useState<number>(0);
 
-  // References to communicate with Three.js render loop
   const triggerPulseRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
 
-    // 1. Scene, Camera, Renderer
+    // 1. Scene & Atmosphere (Matches Linear Obsidian)
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x020617, 0.035);
+    scene.fog = new THREE.FogExp2(0x09090b, 0.035);
 
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 520;
-
     const isMobile = width < 640;
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, isMobile ? 3 : 4, isMobile ? 18 : 14);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
+    camera.position.set(0, isMobile ? 3.5 : 4.5, isMobile ? 18 : 14.5);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
     renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
@@ -123,154 +128,324 @@ export const Cluster3DCanvas: React.FC<Cluster3DCanvasProps> = ({ metrics, onTri
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.maxDistance = 28;
-    controls.minDistance = 4;
+    controls.maxDistance = 26;
+    controls.minDistance = 5;
     controls.autoRotate = autoRotate;
-    controls.autoRotateSpeed = 0.9;
+    controls.autoRotateSpeed = 0.6;
+    controls.maxPolarAngle = Math.PI / 2 + 0.1;
 
-    // 3. Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+    // 3. Realistic Studio Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
 
-    const pointLight = new THREE.PointLight(0x6366f1, 3, 30);
-    pointLight.position.set(0, 8, 5);
-    scene.add(pointLight);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.8);
+    keyLight.position.set(8, 12, 10);
+    scene.add(keyLight);
 
-    const cyanLight = new THREE.PointLight(0x38bdf8, 2, 20);
-    cyanLight.position.set(-6, 2, 2);
-    scene.add(cyanLight);
+    const fillLight = new THREE.DirectionalLight(0x6366f1, 0.8);
+    fillLight.position.set(-10, -4, -6);
+    scene.add(fillLight);
 
-    const emeraldLight = new THREE.PointLight(0x10b981, 2, 20);
-    emeraldLight.position.set(4, 3, 2);
-    scene.add(emeraldLight);
-
-    // 4. Background Starfield / Particle Dust
-    const particleGeo = new THREE.BufferGeometry();
-    const particleCount = 450;
-    const posArray = new Float32Array(particleCount * 3);
-    for (let i = 0; i < particleCount * 3; i++) {
-      posArray[i] = (Math.random() - 0.5) * 35;
-    }
-    particleGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-    const particleMat = new THREE.PointsMaterial({
-      size: 0.05,
-      color: 0x94a3b8,
-      transparent: true,
-      opacity: 0.4,
+    // 4. Datacenter Floor Grid Platform
+    const floorGeo = new THREE.PlaneGeometry(36, 36);
+    const floorMat = new THREE.MeshStandardMaterial({
+      color: 0x09090b,
+      roughness: 0.85,
+      metalness: 0.3,
     });
-    const starField = new THREE.Points(particleGeo, particleMat);
-    scene.add(starField);
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -3.8;
+    scene.add(floor);
 
-    // 5. Grid helper in 3D floor
-    const grid = new THREE.GridHelper(30, 30, 0x1e293b, 0x0f172a);
-    grid.position.y = -3.8;
+    const grid = new THREE.GridHelper(36, 36, 0x27272a, 0x18181b);
+    grid.position.y = -3.79;
     scene.add(grid);
 
-    // 6. Build 3D Nodes
+    // 5. Materials Library (PBR High-Tech)
+    const chassisMat = new THREE.MeshStandardMaterial({
+      color: 0x18181b,
+      metalness: 0.85,
+      roughness: 0.25,
+    });
+
+    const brushedAluMat = new THREE.MeshStandardMaterial({
+      color: 0x71717a,
+      metalness: 0.95,
+      roughness: 0.15,
+    });
+
+    const darkTrimMat = new THREE.MeshStandardMaterial({
+      color: 0x09090b,
+      metalness: 0.6,
+      roughness: 0.5,
+    });
+
+    // 6. Build High-End Realistic Models
     const nodeMeshes: THREE.Group[] = [];
     const interactiveMeshes: THREE.Mesh[] = [];
+
+    // Helper: Add pedestal under each node
+    const createPedestal = (color: number) => {
+      const pGroup = new THREE.Group();
+      const baseGeo = new THREE.CylinderGeometry(1.4, 1.5, 0.15, 24);
+      const baseMesh = new THREE.Mesh(baseGeo, darkTrimMat);
+      baseMesh.position.y = -1.1;
+      pGroup.add(baseMesh);
+
+      const glowRingGeo = new THREE.TorusGeometry(1.42, 0.025, 8, 32);
+      const glowRingMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 });
+      const glowRing = new THREE.Mesh(glowRingGeo, glowRingMat);
+      glowRing.rotation.x = Math.PI / 2;
+      glowRing.position.y = -1.02;
+      pGroup.add(glowRing);
+      return pGroup;
+    };
 
     NODES.forEach((node) => {
       const group = new THREE.Group();
       group.position.set(...node.position);
 
-      let mainMesh: THREE.Mesh;
+      let clickHitMesh: THREE.Mesh;
 
-      if (node.id === 'gateway') {
-        const geo = new THREE.IcosahedronGeometry(0.9, 0);
-        const mat = new THREE.MeshStandardMaterial({
-          color: node.color,
-          emissive: node.emissive,
-          emissiveIntensity: 0.6,
-          roughness: 0.2,
-          metalness: 0.8,
-        });
-        mainMesh = new THREE.Mesh(geo, mat);
+      // Add Pedestal under node
+      group.add(createPedestal(node.color));
 
-        // Outer rotating wireframe
-        const wireGeo = new THREE.IcosahedronGeometry(1.2, 1);
-        const wireMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.25 });
-        const wireMesh = new THREE.Mesh(wireGeo, wireMat);
-        group.add(wireMesh);
-      } else if (node.id === 'kafka') {
-        const geo = new THREE.CylinderGeometry(0.85, 0.85, 1.2, 16);
-        const mat = new THREE.MeshStandardMaterial({
-          color: node.color,
-          emissive: node.emissive,
-          emissiveIntensity: 0.7,
-          roughness: 0.3,
-          metalness: 0.7,
-        });
-        mainMesh = new THREE.Mesh(geo, mat);
+      if (node.id === 'kafka') {
+        // --- REALISTIC KAFKA 3-TIER PARTITION SERVER RACK TOWER ---
+        const towerGroup = new THREE.Group();
 
-        // 3 Partition rings
-        for (let r = 0; r < 3; r++) {
-          const torusGeo = new THREE.TorusGeometry(1.2 + r * 0.22, 0.02, 8, 32);
-          const torusMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.6 });
-          const torus = new THREE.Mesh(torusGeo, torusMat);
-          torus.rotation.x = Math.PI / 2;
-          torus.position.y = (r - 1) * 0.3;
-          group.add(torus);
+        // Main Server Chassis
+        const chassisGeo = new THREE.BoxGeometry(1.8, 2.2, 1.4);
+        const chassis = new THREE.Mesh(chassisGeo, chassisMat);
+        towerGroup.add(chassis);
+        clickHitMesh = chassis;
+
+        // 3 Partition Trays (0, 1, 2)
+        for (let i = 0; i < 3; i++) {
+          const trayY = (i - 1) * 0.62;
+          const trayGeo = new THREE.BoxGeometry(1.65, 0.48, 0.1);
+          const trayMesh = new THREE.Mesh(trayGeo, brushedAluMat);
+          trayMesh.position.set(0, trayY, 0.71);
+          towerGroup.add(trayMesh);
+
+          // Handle bar
+          const handleGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.8, 8);
+          const handleMesh = new THREE.Mesh(handleGeo, darkTrimMat);
+          handleMesh.rotation.z = Math.PI / 2;
+          handleMesh.position.set(0, trayY, 0.8);
+          towerGroup.add(handleMesh);
+
+          // Partition Status LEDs
+          for (let l = 0; l < 4; l++) {
+            const ledGeo = new THREE.BoxGeometry(0.04, 0.04, 0.02);
+            const ledMat = new THREE.MeshBasicMaterial({ color: l === 0 ? 0x10b981 : 0xf59e0b });
+            const led = new THREE.Mesh(ledGeo, ledMat);
+            led.position.set(-0.6 + l * 0.12, trayY + 0.12, 0.77);
+            towerGroup.add(led);
+          }
         }
-      } else if (node.id === 'redis') {
-        const geo = new THREE.CylinderGeometry(0.9, 0.9, 0.9, 6);
-        const mat = new THREE.MeshStandardMaterial({
-          color: node.color,
-          emissive: node.emissive,
-          emissiveIntensity: 0.75,
-          roughness: 0.2,
-          metalness: 0.6,
-        });
-        mainMesh = new THREE.Mesh(geo, mat);
 
-        // Fast-path halo ring
-        const haloGeo = new THREE.RingGeometry(1.1, 1.3, 16);
-        const haloMat = new THREE.MeshBasicMaterial({ color: 0x34d399, side: THREE.DoubleSide, transparent: true, opacity: 0.4 });
-        const halo = new THREE.Mesh(haloGeo, haloMat);
-        halo.rotation.x = Math.PI / 2;
-        group.add(halo);
+        // Top activity optic strip
+        const topBarGeo = new THREE.BoxGeometry(1.6, 0.05, 0.04);
+        const topBarMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+        const topBar = new THREE.Mesh(topBarGeo, topBarMat);
+        topBar.position.set(0, 1.0, 0.72);
+        towerGroup.add(topBar);
+
+        group.add(towerGroup);
       } else if (node.id === 'postgres') {
-        const geo = new THREE.CylinderGeometry(1.0, 1.0, 1.3, 20);
-        const mat = new THREE.MeshStandardMaterial({
-          color: node.color,
-          emissive: node.emissive,
-          emissiveIntensity: 0.6,
-          roughness: 0.25,
-          metalness: 0.9,
-        });
-        mainMesh = new THREE.Mesh(geo, mat);
+        // --- REALISTIC POSTGRESQL MULTI-TIER ACID STORAGE VAULT ---
+        const vaultGroup = new THREE.Group();
 
-        // Fencing token aura ring
-        const tokenRingGeo = new THREE.TorusGeometry(1.4, 0.035, 12, 48);
-        const tokenRingMat = new THREE.MeshStandardMaterial({ color: 0x818cf8, emissive: 0x6366f1, emissiveIntensity: 1 });
-        const tokenRing = new THREE.Mesh(tokenRingGeo, tokenRingMat);
-        tokenRing.rotation.x = Math.PI / 2;
-        group.add(tokenRing);
-      } else {
-        // DLQ
-        const geo = new THREE.OctahedronGeometry(0.85, 0);
-        const mat = new THREE.MeshStandardMaterial({
-          color: node.color,
-          emissive: node.emissive,
-          emissiveIntensity: 0.8,
-          roughness: 0.2,
-          metalness: 0.7,
+        // Central storage spindle
+        const spindleGeo = new THREE.CylinderGeometry(0.5, 0.5, 2.2, 24);
+        const spindle = new THREE.Mesh(spindleGeo, darkTrimMat);
+        vaultGroup.add(spindle);
+
+        // 4 Stacked Aluminum Storage Platters
+        for (let p = 0; p < 4; p++) {
+          const platterY = -0.75 + p * 0.5;
+          const platterGeo = new THREE.CylinderGeometry(1.2, 1.2, 0.16, 32);
+          const platter = new THREE.Mesh(platterGeo, brushedAluMat);
+          platter.position.y = platterY;
+          vaultGroup.add(platter);
+
+          // Spacer ring between platters
+          const spacerGeo = new THREE.CylinderGeometry(0.75, 0.75, 0.1, 24);
+          const spacer = new THREE.Mesh(spacerGeo, chassisMat);
+          spacer.position.y = platterY + 0.13;
+          vaultGroup.add(spacer);
+        }
+
+        // Hit mesh
+        const hitGeo = new THREE.CylinderGeometry(1.25, 1.25, 2.1, 16);
+        const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
+        clickHitMesh = new THREE.Mesh(hitGeo, hitMat);
+        vaultGroup.add(clickHitMesh);
+
+        // 4 Outer Titanium Reinforcing Pillars
+        for (let col = 0; col < 4; col++) {
+          const angle = (col / 4) * Math.PI * 2;
+          const pillarGeo = new THREE.CylinderGeometry(0.04, 0.04, 2.0, 12);
+          const pillar = new THREE.Mesh(pillarGeo, darkTrimMat);
+          pillar.position.set(Math.cos(angle) * 1.35, 0, Math.sin(angle) * 1.35);
+          vaultGroup.add(pillar);
+        }
+
+        // Fencing Token Aura Ring (Rotating Magnetic Lock)
+        const lockRingGeo = new THREE.TorusGeometry(1.45, 0.04, 12, 36);
+        const lockRingMat = new THREE.MeshStandardMaterial({
+          color: 0x8b5cf6,
+          emissive: 0x6d28d9,
+          emissiveIntensity: 1.5,
+          roughness: 0.1,
         });
-        mainMesh = new THREE.Mesh(geo, mat);
+        const lockRing = new THREE.Mesh(lockRingGeo, lockRingMat);
+        lockRing.rotation.x = Math.PI / 2;
+        vaultGroup.add(lockRing);
+
+        group.add(vaultGroup);
+      } else if (node.id === 'redis') {
+        // --- REALISTIC REDIS L1 HIGH-SPEED IN-MEMORY CORE BLADE ---
+        const redisGroup = new THREE.Group();
+
+        // Dark PCB Substrate Blade
+        const pcbGeo = new THREE.BoxGeometry(1.8, 1.6, 0.12);
+        const pcb = new THREE.Mesh(pcbGeo, chassisMat);
+        redisGroup.add(pcb);
+        clickHitMesh = pcb;
+
+        // Gold edge connector fingers along bottom
+        const goldGeo = new THREE.BoxGeometry(1.7, 0.15, 0.14);
+        const goldMat = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.9, roughness: 0.2 });
+        const goldEdge = new THREE.Mesh(goldGeo, goldMat);
+        goldEdge.position.y = -0.75;
+        redisGroup.add(goldEdge);
+
+        // 4 Fast-Path Silicon Memory Dies
+        for (let d = 0; d < 4; d++) {
+          const dieX = -0.45 + (d % 2) * 0.9;
+          const dieY = 0.35 - Math.floor(d / 2) * 0.65;
+          const dieGeo = new THREE.BoxGeometry(0.5, 0.45, 0.08);
+          const die = new THREE.Mesh(dieGeo, darkTrimMat);
+          die.position.set(dieX, dieY, 0.09);
+          redisGroup.add(die);
+
+          // LED trace per die
+          const dieLedGeo = new THREE.BoxGeometry(0.04, 0.04, 0.02);
+          const dieLedMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
+          const dieLed = new THREE.Mesh(dieLedGeo, dieLedMat);
+          dieLed.position.set(dieX + 0.18, dieY + 0.14, 0.14);
+          redisGroup.add(dieLed);
+        }
+
+        // Translucent Crystalline Heat-Spreader Core
+        const crystalGeo = new THREE.BoxGeometry(1.4, 0.5, 0.25);
+        const crystalMat = new THREE.MeshStandardMaterial({
+          color: 0x10b981,
+          emissive: 0x059669,
+          emissiveIntensity: 0.6,
+          transparent: true,
+          opacity: 0.45,
+          roughness: 0.1,
+          metalness: 0.4,
+        });
+        const crystal = new THREE.Mesh(crystalGeo, crystalMat);
+        crystal.position.set(0, 0, 0.12);
+        redisGroup.add(crystal);
+
+        // Sub-3ms Fast-Path Orbital Ring
+        const ringGeo = new THREE.RingGeometry(1.3, 1.4, 32);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0x10b981, side: THREE.DoubleSide, transparent: true, opacity: 0.4 });
+        const ring = new THREE.Mesh(ringGeo, ringMat);
+        ring.rotation.x = Math.PI / 2;
+        redisGroup.add(ring);
+
+        group.add(redisGroup);
+      } else if (node.id === 'gateway') {
+        // --- REALISTIC REST INGESTION GATEWAY APPLIANCE ---
+        const gwGroup = new THREE.Group();
+
+        // 1U Rackmount Unit
+        const rackGeo = new THREE.BoxGeometry(2.2, 0.75, 1.4);
+        const rack = new THREE.Mesh(rackGeo, chassisMat);
+        gwGroup.add(rack);
+        clickHitMesh = rack;
+
+        // Front Bezel Trim
+        const bezelGeo = new THREE.BoxGeometry(2.1, 0.65, 0.06);
+        const bezel = new THREE.Mesh(bezelGeo, brushedAluMat);
+        bezel.position.set(0, 0, 0.72);
+        gwGroup.add(bezel);
+
+        // Optical Fiber SFP Ports (Glowing Cyan)
+        for (let p = 0; p < 6; p++) {
+          const portGeo = new THREE.BoxGeometry(0.18, 0.14, 0.05);
+          const portMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+          const port = new THREE.Mesh(portGeo, portMat);
+          port.position.set(-0.75 + p * 0.3, -0.05, 0.76);
+          gwGroup.add(port);
+        }
+
+        // Status Display Window
+        const dispGeo = new THREE.BoxGeometry(0.5, 0.18, 0.03);
+        const dispMat = new THREE.MeshBasicMaterial({ color: 0x0284c7 });
+        const disp = new THREE.Mesh(dispGeo, dispMat);
+        disp.position.set(0.65, 0.15, 0.76);
+        gwGroup.add(disp);
+
+        // Dual Fiber Antennas
+        for (let a = 0; a < 2; a++) {
+          const antGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.9, 8);
+          const ant = new THREE.Mesh(antGeo, darkTrimMat);
+          ant.position.set(-0.8 + a * 1.6, 0.6, -0.5);
+          gwGroup.add(ant);
+        }
+
+        group.add(gwGroup);
+      } else {
+        // --- REALISTIC DLQ QUARANTINE ISOLATION VAULT ---
+        const dlqGroup = new THREE.Group();
+
+        // Octagonal Reinforced Containment Chassis
+        const octGeo = new THREE.CylinderGeometry(1.0, 1.15, 1.4, 8);
+        const oct = new THREE.Mesh(octGeo, chassisMat);
+        dlqGroup.add(oct);
+        clickHitMesh = oct;
+
+        // Top Containment Hatch Lid
+        const hatchGeo = new THREE.CylinderGeometry(0.85, 0.85, 0.2, 8);
+        const hatch = new THREE.Mesh(hatchGeo, brushedAluMat);
+        hatch.position.y = 0.75;
+        dlqGroup.add(hatch);
+
+        // Hazard Warning Ring (Amber/Rose)
+        const hazardRingGeo = new THREE.TorusGeometry(1.18, 0.04, 8, 24);
+        const hazardRingMat = new THREE.MeshStandardMaterial({
+          color: 0xf43f5e,
+          emissive: 0xbe123c,
+          emissiveIntensity: 1.2,
+        });
+        const hazardRing = new THREE.Mesh(hazardRingGeo, hazardRingMat);
+        hazardRing.rotation.x = Math.PI / 2;
+        dlqGroup.add(hazardRing);
+
+        group.add(dlqGroup);
       }
 
-      mainMesh.userData = { nodeData: node };
-      interactiveMeshes.push(mainMesh);
-      group.add(mainMesh);
+      // Metadata for click raycasting
+      clickHitMesh.userData = { nodeData: node };
+      interactiveMeshes.push(clickHitMesh);
       scene.add(group);
       nodeMeshes.push(group);
     });
 
-    // 7. 3D Curved Splines Connecting the Nodes
+    // 7. High-Precision Fiber-Optic Conduits Connecting Modules
     const connectionPairs = [
-      { from: NODES[0].position, to: NODES[1].position, color: 0x38bdf8 }, // Ingest -> Kafka
-      { from: NODES[1].position, to: NODES[2].position, color: 0xfbbf24 }, // Kafka -> Redis
-      { from: NODES[2].position, to: NODES[3].position, color: 0x34d399 }, // Redis -> Postgres
+      { from: NODES[0].position, to: NODES[1].position, color: 0x38bdf8 }, // Gateway -> Kafka
+      { from: NODES[1].position, to: NODES[2].position, color: 0xf59e0b }, // Kafka -> Redis
+      { from: NODES[2].position, to: NODES[3].position, color: 0x10b981 }, // Redis -> Postgres
       { from: NODES[1].position, to: NODES[4].position, color: 0xf43f5e }, // Kafka -> DLQ
     ];
 
@@ -280,23 +455,23 @@ export const Cluster3DCanvas: React.FC<Cluster3DCanvasProps> = ({ metrics, onTri
       const vFrom = new THREE.Vector3(...pair.from);
       const vTo = new THREE.Vector3(...pair.to);
       const mid = new THREE.Vector3().addVectors(vFrom, vTo).multiplyScalar(0.5);
-      mid.y += 1.2; // elevated arch curve
+      mid.y += 1.0; // natural arched conduit
 
       const curve = new THREE.QuadraticBezierCurve3(vFrom, mid, vTo);
       curves.push(curve);
 
-      // Tube geometry for glowing path
-      const tubeGeo = new THREE.TubeGeometry(curve, 32, 0.03, 8, false);
+      // Glass cable conduit
+      const tubeGeo = new THREE.TubeGeometry(curve, 36, 0.035, 8, false);
       const tubeMat = new THREE.MeshBasicMaterial({ color: pair.color, transparent: true, opacity: 0.35 });
       const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
       scene.add(tubeMesh);
     });
 
-    // 8. Glowing Animated Packets traversing the splines
+    // 8. Stream Energy Packets (Travelling Light Capsules)
     const packets: { mesh: THREE.Mesh; curveIndex: number; progress: number; speed: number }[] = [];
-    const packetGeo = new THREE.SphereGeometry(0.12, 12, 12);
+    const packetGeo = new THREE.SphereGeometry(0.09, 12, 12);
 
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 10; i++) {
       const cIdx = i % curves.length;
       const color = connectionPairs[cIdx].color;
       const packetMat = new THREE.MeshBasicMaterial({ color });
@@ -307,19 +482,19 @@ export const Cluster3DCanvas: React.FC<Cluster3DCanvasProps> = ({ metrics, onTri
         mesh: packetMesh,
         curveIndex: cIdx,
         progress: Math.random(),
-        speed: 0.006 + Math.random() * 0.004,
+        speed: 0.005 + Math.random() * 0.004,
       });
     }
 
-    // Burst trigger function to rapidly animate packets
+    // Burst speed trigger
     triggerPulseRef.current = () => {
       packets.forEach(p => {
-        p.speed = 0.025; // speed burst
-        setTimeout(() => { p.speed = 0.008; }, 2000);
+        p.speed = 0.022;
+        setTimeout(() => { p.speed = 0.006; }, 2200);
       });
     };
 
-    // 9. Raycasting for Mouse Hover & Selection
+    // 9. Raycasting Interaction
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
@@ -347,20 +522,15 @@ export const Cluster3DCanvas: React.FC<Cluster3DCanvasProps> = ({ metrics, onTri
       animationFrameId = requestAnimationFrame(animate);
       const elapsedTime = clock.getElapsedTime();
 
-      // Update Controls
       controls.autoRotate = autoRotate;
       controls.update();
 
-      // Gently rotate individual nodes & rings
+      // Subtle breathing pulse for server racks (firm and realistic, not wildly spinning!)
       nodeMeshes.forEach((group, idx) => {
-        group.rotation.y = elapsedTime * (0.3 + idx * 0.1);
-        group.position.y += Math.sin(elapsedTime * 2 + idx) * 0.0015;
+        group.position.y = NODES[idx].position[1] + Math.sin(elapsedTime * 1.5 + idx) * 0.04;
       });
 
-      // Animate starfield
-      starField.rotation.y = elapsedTime * 0.02;
-
-      // Animate packet positions along curves
+      // Animate stream packets
       packets.forEach(p => {
         p.progress += p.speed;
         if (p.progress > 1) p.progress = 0;
@@ -373,7 +543,7 @@ export const Cluster3DCanvas: React.FC<Cluster3DCanvasProps> = ({ metrics, onTri
 
     animate();
 
-    // 11. Responsive Resize
+    // 11. Resize
     const handleResize = () => {
       if (!container) return;
       const w = container.clientWidth;
@@ -404,21 +574,21 @@ export const Cluster3DCanvas: React.FC<Cluster3DCanvasProps> = ({ metrics, onTri
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl relative overflow-hidden">
+    <div className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-4 sm:p-5 shadow-2xl relative overflow-hidden group">
       {/* 3D Header HUD */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-800 gap-3 relative z-10">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-zinc-800/80 gap-3 relative z-10">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
-              <Box className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-400 animate-spin-slow shrink-0" />
-              <span>3D Topology & Event Stream Canvas</span>
+            <h2 className="text-sm sm:text-base font-semibold text-white flex items-center gap-2">
+              <Server className="w-4 h-4 text-zinc-300 shrink-0" />
+              <span>3D Distributed Infrastructure & Stream Topology</span>
             </h2>
-            <span className="hidden xs:inline-flex px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">
-              WebGL
+            <span className="hidden xs:inline-flex px-2 py-0.5 rounded-md text-[10px] font-mono font-medium bg-zinc-800 text-zinc-300 border border-zinc-700/60">
+              Interactive Hardware Cluster
             </span>
           </div>
-          <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
-            Drag to rotate 360° • Pinch to zoom • Tap nodes to inspect
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Click any server blade to inspect ACID guarantees • Orbit & zoom with mouse / touch
           </p>
         </div>
 
@@ -426,74 +596,78 @@ export const Cluster3DCanvas: React.FC<Cluster3DCanvasProps> = ({ metrics, onTri
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => setAutoRotate(!autoRotate)}
-            className={`px-2.5 sm:px-3 py-1.5 rounded-xl border text-[11px] sm:text-xs font-medium flex items-center gap-1.5 transition ${
+            className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition ${
               autoRotate 
-                ? 'bg-indigo-600/20 border-indigo-500/40 text-indigo-300' 
-                : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
+                ? 'bg-zinc-800 border-zinc-700 text-white shadow-sm' 
+                : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
             }`}
           >
-            {autoRotate ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-            <span className="hidden xs:inline">{autoRotate ? 'Pause' : 'Rotate'}</span>
+            {autoRotate ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+            <span className="hidden xs:inline">{autoRotate ? 'Pause Rotation' : 'Rotate'}</span>
           </button>
 
           <button
             onClick={handlePulse}
-            className="px-3 sm:px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-indigo-600 hover:from-amber-400 hover:to-indigo-500 text-white font-semibold text-[11px] sm:text-xs shadow-lg shadow-indigo-500/20 flex items-center gap-1.5 transition active:scale-95"
+            className="px-3 py-1.5 rounded-lg bg-white hover:bg-zinc-200 text-zinc-950 font-semibold text-xs shadow-sm flex items-center gap-1.5 transition"
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles className="w-3.5 h-3.5 fill-current" />
             <span>Burst Pulse</span>
           </button>
         </div>
       </div>
 
       {/* Main 3D Canvas Box */}
-      <div className="relative w-full h-[320px] xs:h-[380px] sm:h-[450px] lg:h-[500px] rounded-xl sm:rounded-2xl overflow-hidden bg-slate-950 border border-slate-800/80 mt-4">
+      <div className="relative w-full h-[320px] xs:h-[380px] sm:h-[450px] lg:h-[500px] rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800 mt-3.5 shadow-inner">
         {/* Three.js Container Mount */}
         <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing touch-none" />
 
         {/* Floating 3D Legend & Node Stats Overlay */}
         {selectedNode && (
-          <div className="absolute top-3 left-3 sm:top-4 sm:left-4 max-w-[240px] xs:max-w-[280px] sm:max-w-xs bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-2xl animate-fadeIn font-sans z-20">
-            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800">
-              <span className="text-[9px] sm:text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-wider">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="absolute top-3 left-3 sm:top-4 sm:left-4 max-w-[240px] xs:max-w-[280px] sm:max-w-xs bg-zinc-950/90 backdrop-blur-xl border border-zinc-800 rounded-xl p-3.5 shadow-2xl font-sans z-20"
+          >
+            <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-zinc-800">
+              <span className="text-[10px] font-mono font-medium text-zinc-400 uppercase tracking-wider">
                 {selectedNode.category}
               </span>
-              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400 animate-ping" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             </div>
-            <h3 className="text-xs sm:text-sm font-extrabold text-white">{selectedNode.name}</h3>
-            <p className="text-[11px] sm:text-xs text-slate-300 mt-1 leading-relaxed line-clamp-3 sm:line-clamp-none">
+            <h3 className="text-xs sm:text-sm font-bold text-white">{selectedNode.name}</h3>
+            <p className="text-[11px] sm:text-xs text-zinc-300 mt-1 leading-relaxed line-clamp-3 sm:line-clamp-none">
               {selectedNode.role}
             </p>
-            <div className="mt-2.5 pt-1.5 border-t border-slate-800/80 text-[10px] sm:text-[11px] font-mono text-emerald-400 flex items-center gap-1">
-              <Info className="w-3 h-3 shrink-0" />
+            <div className="mt-2.5 pt-1.5 border-t border-zinc-800/80 text-[10px] sm:text-[11px] font-mono text-zinc-400 flex items-center gap-1">
+              <Info className="w-3 h-3 text-zinc-400 shrink-0" />
               <span className="truncate">{selectedNode.stats}</span>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* 3D Real-Time Telemetry Bar floating in bottom center */}
-        <div className="absolute bottom-2.5 left-2.5 right-2.5 sm:bottom-4 sm:left-4 sm:right-4 bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 flex items-center justify-between gap-2 z-20 text-[11px] sm:text-xs font-mono">
-          <div className="flex items-center gap-3 sm:gap-6 overflow-x-auto no-scrollbar">
+        <div className="absolute bottom-3 left-3 right-3 sm:bottom-4 sm:left-4 sm:right-4 bg-zinc-950/85 backdrop-blur-xl border border-zinc-800 rounded-xl p-2.5 sm:p-3 flex items-center justify-between gap-2 z-20 text-xs font-mono">
+          <div className="flex items-center gap-3 sm:gap-5 overflow-x-auto no-scrollbar">
             <div className="flex items-center gap-1.5 shrink-0">
-              <span className="w-2 h-2 rounded-full bg-cyan-400" />
-              <span className="text-slate-300">Gateway</span>
+              <span className="w-2 h-2 rounded-full bg-sky-400" />
+              <span className="text-zinc-300">Gateway</span>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="w-2 h-2 rounded-full bg-amber-400" />
-              <span className="text-slate-300">Kafka</span>
+              <span className="text-zinc-300">Kafka 3x Partitions</span>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span className="text-slate-300">Redis L1</span>
+              <span className="text-zinc-300">Redis L1</span>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <span className="w-2 h-2 rounded-full bg-indigo-400" />
-              <span className="text-slate-300">PostgreSQL</span>
+              <span className="w-2 h-2 rounded-full bg-purple-400" />
+              <span className="text-zinc-300">PostgreSQL ACID</span>
             </div>
           </div>
 
-          <div className="text-slate-400 text-[10px] sm:text-[11px] shrink-0 font-sans">
-            Pulses: <span className="text-amber-400 font-bold font-mono">{pulseCount}</span>
+          <div className="text-zinc-400 text-[11px] shrink-0 font-sans">
+            Pulses: <span className="text-white font-bold font-mono">{pulseCount}</span>
           </div>
         </div>
       </div>
